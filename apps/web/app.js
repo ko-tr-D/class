@@ -147,6 +147,14 @@ const seedState = {
 let state = loadState();
 const app = document.querySelector("#app");
 
+window.addEventListener("error", (event) => {
+  renderFatalError(event.error || event.message);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  renderFatalError(event.reason);
+});
+
 async function apiFetch(path, options = {}) {
   const headers = {
     ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -217,8 +225,14 @@ async function loadDashboardFromApi() {
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return structuredClone(seedState);
-  return mergeState(structuredClone(seedState), JSON.parse(saved));
+  if (!saved) return clone(seedState);
+  try {
+    return mergeState(clone(seedState), JSON.parse(saved));
+  } catch (error) {
+    console.warn("저장된 데모 상태를 읽지 못해 초기 상태로 복구합니다.", error);
+    localStorage.removeItem(STORAGE_KEY);
+    return clone(seedState);
+  }
 }
 
 function mergeState(base, saved) {
@@ -226,7 +240,25 @@ function mergeState(base, saved) {
   merged.teacher = { ...base.teacher, ...saved.teacher };
   merged.classInfo = { ...base.classInfo, ...saved.classInfo };
   merged.studentRuntime = { ...base.studentRuntime, ...saved.studentRuntime };
+  merged.route = getRouteRenderer(merged.route) ? merged.route : "dashboard";
+  merged.students = Array.isArray(merged.students) ? merged.students : base.students;
+  merged.documents = Array.isArray(merged.documents) ? merged.documents : base.documents;
+  merged.standards = Array.isArray(merged.standards) ? merged.standards : base.standards;
+  merged.rubrics = Array.isArray(merged.rubrics) ? merged.rubrics : base.rubrics;
+  merged.recordDrafts = Array.isArray(merged.recordDrafts) ? merged.recordDrafts : base.recordDrafts;
+  merged.assessments = Array.isArray(merged.assessments) ? merged.assessments : base.assessments;
+  merged.attempts = Array.isArray(merged.attempts) ? merged.attempts : base.attempts;
+  merged.auditLogs = Array.isArray(merged.auditLogs) ? merged.auditLogs : base.auditLogs;
+  merged.students = merged.students.map((student) => ({
+    ...student,
+    evidence: student.evidence ?? student.evidence_count ?? 0,
+    tags: Array.isArray(student.tags) ? student.tags : [],
+  }));
   return merged;
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function saveState() {
@@ -599,26 +631,30 @@ function getStudent(id) {
 }
 
 function render() {
-  if (!state.session) {
-    renderLogin();
-    return;
-  }
+  try {
+    if (!state.session) {
+      renderLogin();
+      return;
+    }
 
-  if (state.session.type === "student") {
-    renderStudentAssessment();
-    return;
-  }
+    if (state.session.type === "student") {
+      renderStudentAssessment();
+      return;
+    }
 
-  app.innerHTML = `
-    <section class="dashboard" aria-label="교사용 웹앱">
-      ${renderSidebar()}
-      <div class="workspace">
-        ${renderTopbar()}
-        ${renderRoute()}
-      </div>
-    </section>
-  `;
-  bindRouteEvents();
+    app.innerHTML = `
+      <section class="dashboard" aria-label="교사용 웹앱">
+        ${renderSidebar()}
+        <div class="workspace">
+          ${renderTopbar()}
+          ${renderRoute()}
+        </div>
+      </section>
+    `;
+    bindRouteEvents();
+  } catch (error) {
+    renderFatalError(error);
+  }
 }
 
 function renderLogin() {
@@ -710,6 +746,10 @@ function renderTopbar() {
 }
 
 function renderRoute() {
+  return getRouteRenderer(state.route)();
+}
+
+function getRouteRenderer(route) {
   const routes = {
     dashboard: renderDashboard,
     classes: renderClasses,
@@ -721,7 +761,31 @@ function renderRoute() {
     drafts: renderDrafts,
     audit: renderAudit,
   };
-  return routes[state.route]();
+  return routes[route];
+}
+
+function renderFatalError(error) {
+  const message = error?.message || String(error || "알 수 없는 오류");
+  app.innerHTML = `
+    <section class="student-shell">
+      <article class="student-assessment">
+        <p class="eyebrow">Preview Recovery</p>
+        <h1>미리보기를 다시 열 수 있습니다</h1>
+        <p>브라우저에 남아 있던 이전 데모 데이터 때문에 화면 초기화가 멈췄을 수 있습니다.</p>
+        <pre class="error-box">${escapeHtml(message)}</pre>
+        <button class="primary-button" type="button" id="resetPreview">데모 데이터 초기화</button>
+      </article>
+    </section>
+  `;
+  document.querySelector("#resetPreview")?.addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEY);
+    state = clone(seedState);
+    render();
+  });
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
 }
 
 function renderDashboard() {
