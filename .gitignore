@@ -9,6 +9,7 @@ dist/
 build/
 coverage/
 *.log
+apps/api/data/*.sqlite3
+apps/api/storage/documents/
 .DS_Store
 Thumbs.db
-

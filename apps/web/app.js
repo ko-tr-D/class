@@ -1,4 +1,5 @@
 const STORAGE_KEY = "class-learning-record-state-v1";
+const API_BASE = localStorage.getItem("class-learning-record-api") || "http://localhost:8000/api";
 
 const seedState = {
   session: null,
@@ -146,6 +147,74 @@ const seedState = {
 let state = loadState();
 const app = document.querySelector("#app");
 
+async function apiFetch(path, options = {}) {
+  const headers = {
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+    ...(state.session?.accessToken ? { Authorization: `Bearer ${state.session.accessToken}` } : {}),
+    ...(options.headers || {}),
+  };
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({ detail: "API 요청 실패" }));
+    throw new Error(detail.detail || "API 요청 실패");
+  }
+  return response.json();
+}
+
+async function loadDashboardFromApi() {
+  if (!state.session?.accessToken) return;
+  const data = await apiFetch("/dashboard");
+  state.teacher = data.teacher;
+  state.classInfo = data.classInfo;
+  state.students = data.students.map((student) => ({
+    id: student.id,
+    number: student.number,
+    name: student.name,
+    tags: student.tags,
+    evidence: student.evidence_count,
+    evaluation: student.evaluation,
+  }));
+  state.documents = data.documents.map((document) => ({
+    id: document.id,
+    title: document.title,
+    fileName: document.original_filename,
+    uploadedAt: document.uploaded_at,
+    status: document.status,
+    unit: document.unit,
+    pages: document.pages || [],
+  }));
+  state.standards = data.standards;
+  state.rubrics = data.rubrics.map((rubric) => ({ id: rubric.id, standardId: rubric.standard_id, title: rubric.title, levels: rubric.levels }));
+  state.assessments = data.assessments.map((assessment) => ({
+    id: assessment.id,
+    title: assessment.title,
+    code: assessment.code,
+    status: assessment.status,
+    standardId: assessment.standard_id,
+    questions: assessment.questions,
+  }));
+  state.attempts = data.attempts.map((attempt) => ({
+    id: attempt.id,
+    assessmentId: attempt.assessment_id,
+    studentId: attempt.student_id,
+    studentName: attempt.student_name,
+    score: attempt.score,
+    total: attempt.total,
+    durationSeconds: attempt.duration_seconds,
+    changedAnswers: attempt.changed_answers,
+    submittedAt: attempt.submitted_at,
+    responses: attempt.responses,
+    events: attempt.events,
+  }));
+  state.recordDrafts = data.recordDrafts.map((draft) => ({
+    id: draft.id,
+    studentId: draft.student_id,
+    text: draft.text,
+    status: draft.status,
+  }));
+  saveState();
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(seedState);
@@ -182,24 +251,51 @@ function setLoginMode(mode) {
   render();
 }
 
-function teacherLogin(event) {
+async function teacherLogin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  state.session = {
-    type: "teacher",
-    email: form.get("email"),
-    name: state.teacher.name,
-    classId: state.classInfo.id,
-  };
+  try {
+    const login = await apiFetch("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+    });
+    state.session = {
+      type: "teacher",
+      email: login.email,
+      name: login.display_name,
+      accessToken: login.access_token,
+      classId: state.classInfo.id,
+    };
+    await loadDashboardFromApi();
+  } catch (error) {
+    state.session = {
+      type: "teacher",
+      email: form.get("email"),
+      name: state.teacher.name,
+      classId: state.classInfo.id,
+    };
+    console.warn("API 연결 없이 데모 모드로 로그인합니다.", error);
+  }
   state.route = "dashboard";
   audit("teacher_login", state.teacher.name);
   render();
 }
 
-function studentJoin(event) {
+async function studentJoin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const assessment = state.assessments.find((item) => item.code === form.get("code"));
+  let assessment = state.assessments.find((item) => item.code === form.get("code"));
+  let startedAtMs = Date.now();
+  try {
+    const session = await apiFetch("/student-sessions", {
+      method: "POST",
+      body: JSON.stringify({ code: form.get("code"), student_name: form.get("studentName") }),
+    });
+    assessment = session.assessment;
+    startedAtMs = session.started_at_ms;
+  } catch (error) {
+    console.warn("API 연결 없이 데모 학생 세션을 사용합니다.", error);
+  }
   if (!assessment) {
     alert("접속 코드를 확인해 주세요.");
     return;
@@ -213,7 +309,11 @@ function studentJoin(event) {
     assessmentId: assessment.id,
     answers: {},
     changedAnswers: 0,
+    startedAtMs,
   };
+  if (!state.assessments.some((item) => item.id === assessment.id)) {
+    state.assessments.push({ ...assessment, code: form.get("code"), status: "배포 중" });
+  }
   audit("student_join", form.get("code"));
   saveState();
   renderStudentAssessment();
@@ -225,30 +325,40 @@ function logout() {
   render();
 }
 
-function addStudent(event) {
+async function addStudent(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const name = form.get("name").trim();
   if (!name) return;
-  state.students.push({
+  let student = {
     id: `s${Date.now()}`,
     number: form.get("number").trim(),
     name,
     tags: [form.get("tag").trim() || "관찰 필요"],
     evidence: 0,
     evaluation: "미입력",
-  });
+  };
+  try {
+    const saved = await apiFetch("/students", {
+      method: "POST",
+      body: JSON.stringify({ class_id: state.classInfo.id, number: student.number, name: student.name, tag: student.tags[0] }),
+    });
+    student = { id: saved.id, number: saved.number, name: saved.name, tags: saved.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
+  } catch (error) {
+    console.warn("학생을 브라우저 저장소에만 추가합니다.", error);
+  }
+  state.students.push(student);
   audit("create_student", name);
   saveState();
   render();
 }
 
-function addDocument(event) {
+async function addDocument(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const file = form.get("pdf");
   const title = form.get("title").trim() || file?.name || "새 수업 자료";
-  state.documents.unshift({
+  let document = {
     id: `d${Date.now()}`,
     title,
     fileName: file?.name || "uploaded-note.pdf",
@@ -264,7 +374,19 @@ function addDocument(event) {
         reviewed: false,
       },
     ],
-  });
+  };
+  try {
+    const upload = new FormData();
+    upload.set("title", title);
+    upload.set("unit", form.get("unit").trim() || "단원 미지정");
+    upload.set("class_id", state.classInfo.id);
+    upload.set("file", file);
+    const saved = await apiFetch("/documents", { method: "POST", body: upload });
+    document = { ...document, ...saved };
+  } catch (error) {
+    console.warn("PDF를 브라우저 저장소에만 등록합니다.", error);
+  }
+  state.documents.unshift(document);
   audit("upload_document", title);
   saveState();
   render();
@@ -283,15 +405,21 @@ function approvePage(documentId, pageId) {
   const page = document.pages.find((item) => item.id === pageId);
   page.reviewed = true;
   document.status = document.pages.every((item) => item.reviewed) ? "검수 완료" : "검수 대기";
+  if (state.session?.accessToken) {
+    apiFetch(`/documents/${documentId}/pages/${pageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ corrected_text: page.corrected }),
+    }).catch((error) => console.warn("OCR 검수 결과를 브라우저 저장소에만 저장합니다.", error));
+  }
   audit("review_ocr_page", `${document.title} ${page.number}쪽`);
   saveState();
   render();
 }
 
-function addRubric(event) {
+async function addRubric(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  state.rubrics.push({
+  let rubric = {
     id: `r${Date.now()}`,
     standardId: form.get("standardId"),
     title: form.get("title").trim(),
@@ -300,7 +428,17 @@ function addRubric(event) {
       { label: "B", text: form.get("levelB").trim() },
       { label: "C", text: form.get("levelC").trim() },
     ],
-  });
+  };
+  try {
+    const saved = await apiFetch("/rubrics", {
+      method: "POST",
+      body: JSON.stringify({ standard_id: rubric.standardId, title: rubric.title, levels: rubric.levels }),
+    });
+    rubric = { id: saved.id, standardId: saved.standard_id, title: saved.title, levels: saved.levels };
+  } catch (error) {
+    console.warn("평가 기준을 브라우저 저장소에만 저장합니다.", error);
+  }
+  state.rubrics.push(rubric);
   audit("create_rubric", form.get("title"));
   saveState();
   render();
@@ -310,15 +448,21 @@ function updateEvaluation(studentId, level) {
   const student = state.students.find((item) => item.id === studentId);
   student.evaluation = level;
   student.evidence += student.evidence === 0 ? 1 : 0;
+  if (state.session?.accessToken) {
+    apiFetch("/evaluations", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, rubric_level: level }),
+    }).catch((error) => console.warn("평가를 브라우저 저장소에만 저장합니다.", error));
+  }
   audit("update_evaluation", student.name);
   saveState();
   render();
 }
 
-function addAssessment(event) {
+async function addAssessment(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  state.assessments.unshift({
+  let assessment = {
     id: `as${Date.now()}`,
     title: form.get("title").trim(),
     code: form.get("code").trim(),
@@ -333,7 +477,23 @@ function addAssessment(event) {
         answer: form.get("option1").trim(),
       },
     ],
-  });
+  };
+  try {
+    const saved = await apiFetch("/assessments", {
+      method: "POST",
+      body: JSON.stringify({
+        class_id: state.classInfo.id,
+        standard_id: assessment.standardId,
+        title: assessment.title,
+        code: assessment.code,
+        questions: assessment.questions,
+      }),
+    });
+    assessment = { id: saved.id, title: saved.title, code: saved.code, status: saved.status, standardId: assessment.standardId, questions: saved.questions };
+  } catch (error) {
+    console.warn("평가를 브라우저 저장소에만 배포합니다.", error);
+  }
+  state.assessments.unshift(assessment);
   audit("create_assessment", form.get("title"));
   saveState();
   render();
@@ -347,7 +507,7 @@ function updateStudentAnswer(questionId, answer) {
   saveState();
 }
 
-function submitStudentAttempt() {
+async function submitStudentAttempt() {
   const assessment = state.assessments.find((item) => item.id === state.studentRuntime.assessmentId);
   const student = state.students.find((item) => item.name === state.session.name) || state.students[0];
   const score = assessment.questions.reduce((sum, question) => {
@@ -355,7 +515,7 @@ function submitStudentAttempt() {
     return sum + (question.type === "choice" && response === question.answer ? 1 : response.trim() ? 1 : 0);
   }, 0);
 
-  state.attempts.unshift({
+  let attempt = {
     id: `at${Date.now()}`,
     assessmentId: assessment.id,
     studentId: student.id,
@@ -367,7 +527,24 @@ function submitStudentAttempt() {
     submittedAt: "방금 전",
     responses: { ...state.studentRuntime.answers },
     events: ["assessment_started", "answer_changed", "assessment_submitted"],
-  });
+  };
+  try {
+    const saved = await apiFetch("/attempts/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        assessment_id: assessment.id,
+        student_name: state.session.name,
+        responses: state.studentRuntime.answers,
+        changed_answers: state.studentRuntime.changedAnswers,
+        started_at_ms: state.studentRuntime.startedAtMs,
+      }),
+    });
+    attempt = { ...attempt, id: saved.id, score: saved.score, total: saved.total, durationSeconds: saved.duration_seconds, changedAnswers: saved.changed_answers };
+  } catch (error) {
+    console.warn("풀이 결과를 브라우저 저장소에만 저장합니다.", error);
+  }
+
+  state.attempts.unshift(attempt);
   audit("submit_assessment", `${state.session.name} · ${assessment.title}`);
   alert("제출되었습니다. 선생님 화면의 분석실에 기록됩니다.");
   logout();
@@ -381,8 +558,28 @@ function approveDraft(id) {
   render();
 }
 
-function generateDraft(studentId) {
+async function generateDraft(studentId) {
   const student = getStudent(studentId);
+  if (state.session?.accessToken) {
+    try {
+      const saved = await apiFetch("/record-drafts", {
+        method: "POST",
+        body: JSON.stringify({ student_id: studentId, class_id: state.classInfo.id }),
+      });
+      state.recordDrafts.unshift({
+        id: saved.id,
+        studentId: saved.student_id,
+        text: saved.text,
+        status: saved.status,
+      });
+      audit("generate_record_draft", student.name);
+      saveState();
+      render();
+      return;
+    } catch (error) {
+      console.warn("생기부 문구를 브라우저에서 생성합니다.", error);
+    }
+  }
   const attempt = state.attempts.find((item) => item.studentId === studentId);
   const performance = attempt ? `${attempt.score}/${attempt.total}점의 풀이 결과와 ${attempt.changedAnswers}회의 답안 수정 기록` : "수업 활동 기록";
   const text = `${student.name}은 ${student.tags.join(", ")} 특성이 관찰되며, ${performance}을 바탕으로 자신의 이해를 점검하려는 태도를 보임. 평가 과정에서 드러난 강점과 보완점을 다음 활동에 반영하려는 성장이 기대됨.`;

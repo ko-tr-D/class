@@ -6,6 +6,8 @@
 
 현재는 의존성 없이 바로 열어볼 수 있는 브라우저 SPA MVP가 들어 있습니다. `package.json`은 다음 단계에서 Vite/React로 옮길 수 있도록 준비한 것입니다.
 
+API 서버가 `http://localhost:8000/api`에서 실행 중이면 실제 FastAPI/SQLite 백엔드에 저장하고, 서버가 꺼져 있으면 브라우저 `localStorage` 데모 모드로 동작합니다.
+
 ## 현재 프로토타입
 
 - `index.html`: SPA 루트
@@ -41,6 +43,14 @@
 - 생활기록부 문구 초안 승인
 - 학생 기록 카드에서 생활기록부 문구 초안 생성
 - 민감 자료 접근 로그 확인
+
+## API 연결 설정
+
+다른 주소의 API를 쓰려면 브라우저 콘솔에서 다음 값을 바꿉니다.
+
+```js
+localStorage.setItem("class-learning-record-api", "https://your-api.example.com/api")
+```
 
 ## 화면 원칙
 
