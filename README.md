@@ -58,3 +58,5 @@ docs/
 브라우저에서 `apps/web/index.html`을 열면 교사용 이메일 로그인, 학생 접속 코드, 교사용 대시보드, 반/학생 관리, PDF/OCR 검수, 평가 기준표, 학생 기록 카드, 평가 배포, 학생 문제 풀이, 풀이 분석, 생활기록부 문구 초안 흐름을 확인할 수 있습니다.
 
 API 서버를 실행하면 브라우저 저장소가 아니라 FastAPI/SQLite 개발 DB에 저장됩니다.
+
+`http://localhost:8000/api`는 웹 화면이 아니라 API 서버 주소입니다. 웹앱 미리보기는 `apps/web/index.html`을 직접 열거나, `node apps/web/preview-server.mjs` 실행 후 `http://127.0.0.1:4173`으로 접속합니다.
