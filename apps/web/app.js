@@ -286,6 +286,16 @@ function setLoginMode(mode) {
 async function teacherLogin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  state.session = {
+    type: "teacher",
+    email: form.get("email"),
+    name: state.teacher.name,
+    classId: state.classInfo.id,
+  };
+  state.route = "dashboard";
+  audit("teacher_login", state.teacher.name);
+  render();
+
   try {
     const login = await apiFetch("/auth/login", {
       method: "POST",
@@ -299,18 +309,10 @@ async function teacherLogin(event) {
       classId: state.classInfo.id,
     };
     await loadDashboardFromApi();
+    render();
   } catch (error) {
-    state.session = {
-      type: "teacher",
-      email: form.get("email"),
-      name: state.teacher.name,
-      classId: state.classInfo.id,
-    };
     console.warn("API 연결 없이 데모 모드로 로그인합니다.", error);
   }
-  state.route = "dashboard";
-  audit("teacher_login", state.teacher.name);
-  render();
 }
 
 async function studentJoin(event) {
