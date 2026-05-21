@@ -74,6 +74,69 @@ const seedState = {
       status: "검토 대기",
     },
   ],
+  assessments: [
+    {
+      id: "as1",
+      title: "토의와 근거 형성평가",
+      code: "KOR-2026-01",
+      status: "배포 중",
+      standardId: "a1",
+      questions: [
+        {
+          id: "q1",
+          type: "choice",
+          prompt: "토의에서 타당한 근거가 필요한 까닭으로 가장 알맞은 것은?",
+          options: ["주장을 더 설득력 있게 만들기 위해서", "말하는 시간을 줄이기 위해서", "상대 의견을 기록하지 않기 위해서"],
+          answer: "주장을 더 설득력 있게 만들기 위해서",
+        },
+        {
+          id: "q2",
+          type: "short",
+          prompt: "주장과 근거를 연결할 때 확인해야 할 점을 한 문장으로 쓰세요.",
+          answer: "근거가 주장과 관련 있고 믿을 만한지 확인한다.",
+        },
+      ],
+    },
+  ],
+  attempts: [
+    {
+      id: "at1",
+      assessmentId: "as1",
+      studentId: "s2",
+      studentName: "이서연",
+      score: 2,
+      total: 2,
+      durationSeconds: 194,
+      changedAnswers: 1,
+      submittedAt: "어제",
+      responses: {
+        q1: "주장을 더 설득력 있게 만들기 위해서",
+        q2: "근거가 주장과 관련 있는지 확인한다.",
+      },
+      events: ["assessment_started", "answer_changed", "assessment_submitted"],
+    },
+    {
+      id: "at2",
+      assessmentId: "as1",
+      studentId: "s1",
+      studentName: "김민준",
+      score: 1,
+      total: 2,
+      durationSeconds: 283,
+      changedAnswers: 3,
+      submittedAt: "오늘",
+      responses: {
+        q1: "말하는 시간을 줄이기 위해서",
+        q2: "근거가 주장과 맞는지 확인한다.",
+      },
+      events: ["assessment_started", "answer_changed", "answer_changed", "assessment_submitted"],
+    },
+  ],
+  studentRuntime: {
+    assessmentId: null,
+    answers: {},
+    changedAnswers: 0,
+  },
   auditLogs: [
     { action: "teacher_login", target: "국어 선생님", at: "방금 전" },
     { action: "view_dashboard", target: "2학년 3반", at: "방금 전" },
@@ -86,7 +149,15 @@ const app = document.querySelector("#app");
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(seedState);
-  return { ...structuredClone(seedState), ...JSON.parse(saved) };
+  return mergeState(structuredClone(seedState), JSON.parse(saved));
+}
+
+function mergeState(base, saved) {
+  const merged = { ...base, ...saved };
+  merged.teacher = { ...base.teacher, ...saved.teacher };
+  merged.classInfo = { ...base.classInfo, ...saved.classInfo };
+  merged.studentRuntime = { ...base.studentRuntime, ...saved.studentRuntime };
+  return merged;
 }
 
 function saveState() {
@@ -128,12 +199,23 @@ function teacherLogin(event) {
 function studentJoin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  const assessment = state.assessments.find((item) => item.code === form.get("code"));
+  if (!assessment) {
+    alert("접속 코드를 확인해 주세요.");
+    return;
+  }
   state.session = {
     type: "student",
     code: form.get("code"),
     name: form.get("studentName"),
   };
+  state.studentRuntime = {
+    assessmentId: assessment.id,
+    answers: {},
+    changedAnswers: 0,
+  };
   audit("student_join", form.get("code"));
+  saveState();
   renderStudentAssessment();
 }
 
@@ -233,10 +315,84 @@ function updateEvaluation(studentId, level) {
   render();
 }
 
+function addAssessment(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  state.assessments.unshift({
+    id: `as${Date.now()}`,
+    title: form.get("title").trim(),
+    code: form.get("code").trim(),
+    status: "배포 중",
+    standardId: form.get("standardId"),
+    questions: [
+      {
+        id: `q${Date.now()}`,
+        type: "choice",
+        prompt: form.get("prompt").trim(),
+        options: [form.get("option1").trim(), form.get("option2").trim(), form.get("option3").trim()],
+        answer: form.get("option1").trim(),
+      },
+    ],
+  });
+  audit("create_assessment", form.get("title"));
+  saveState();
+  render();
+}
+
+function updateStudentAnswer(questionId, answer) {
+  if (state.studentRuntime.answers[questionId] && state.studentRuntime.answers[questionId] !== answer) {
+    state.studentRuntime.changedAnswers += 1;
+  }
+  state.studentRuntime.answers[questionId] = answer;
+  saveState();
+}
+
+function submitStudentAttempt() {
+  const assessment = state.assessments.find((item) => item.id === state.studentRuntime.assessmentId);
+  const student = state.students.find((item) => item.name === state.session.name) || state.students[0];
+  const score = assessment.questions.reduce((sum, question) => {
+    const response = state.studentRuntime.answers[question.id] || "";
+    return sum + (question.type === "choice" && response === question.answer ? 1 : response.trim() ? 1 : 0);
+  }, 0);
+
+  state.attempts.unshift({
+    id: `at${Date.now()}`,
+    assessmentId: assessment.id,
+    studentId: student.id,
+    studentName: state.session.name,
+    score,
+    total: assessment.questions.length,
+    durationSeconds: 210 + state.studentRuntime.changedAnswers * 18,
+    changedAnswers: state.studentRuntime.changedAnswers,
+    submittedAt: "방금 전",
+    responses: { ...state.studentRuntime.answers },
+    events: ["assessment_started", "answer_changed", "assessment_submitted"],
+  });
+  audit("submit_assessment", `${state.session.name} · ${assessment.title}`);
+  alert("제출되었습니다. 선생님 화면의 분석실에 기록됩니다.");
+  logout();
+}
+
 function approveDraft(id) {
   const draft = state.recordDrafts.find((item) => item.id === id);
   draft.status = "승인 완료";
   audit("approve_record_draft", getStudent(draft.studentId).name);
+  saveState();
+  render();
+}
+
+function generateDraft(studentId) {
+  const student = getStudent(studentId);
+  const attempt = state.attempts.find((item) => item.studentId === studentId);
+  const performance = attempt ? `${attempt.score}/${attempt.total}점의 풀이 결과와 ${attempt.changedAnswers}회의 답안 수정 기록` : "수업 활동 기록";
+  const text = `${student.name}은 ${student.tags.join(", ")} 특성이 관찰되며, ${performance}을 바탕으로 자신의 이해를 점검하려는 태도를 보임. 평가 과정에서 드러난 강점과 보완점을 다음 활동에 반영하려는 성장이 기대됨.`;
+  state.recordDrafts.unshift({
+    id: `draft${Date.now()}`,
+    studentId,
+    text,
+    status: "검토 대기",
+  });
+  audit("generate_record_draft", student.name);
   saveState();
   render();
 }
@@ -312,6 +468,8 @@ function renderSidebar() {
     ["documents", "PDF 자료함"],
     ["rubrics", "평가 기준"],
     ["records", "학생 기록 카드"],
+    ["assessments", "평가 배포"],
+    ["analytics", "분석실"],
     ["drafts", "생기부 문구"],
     ["audit", "접근 로그"],
   ];
@@ -337,6 +495,8 @@ function renderTopbar() {
     documents: ["Document Review", "PDF 업로드와 OCR 검수"],
     rubrics: ["Rubrics", "성취기준과 평가 기준표"],
     records: ["Student Records", "학생별 평가 근거와 성장 기록"],
+    assessments: ["Assessments", "학생용 문제 배포"],
+    analytics: ["Analytics", "성취도와 풀이 패턴 분석"],
     drafts: ["Record Drafts", "생활기록부 문구 초안"],
     audit: ["Security Audit", "민감 자료 접근 로그"],
   };
@@ -359,6 +519,8 @@ function renderRoute() {
     documents: renderDocuments,
     rubrics: renderRubrics,
     records: renderRecords,
+    assessments: renderAssessments,
+    analytics: renderAnalytics,
     drafts: renderDrafts,
     audit: renderAudit,
   };
@@ -373,7 +535,7 @@ function renderDashboard() {
       ${metric("검수 대기 OCR", pendingPages, "PDF 페이지 기준")}
       ${metric("평가 입력률", `${Math.round((completeEvaluations / state.students.length) * 100)}%`, `${state.classInfo.grade} ${state.classInfo.name}`)}
       ${metric("문구 초안 대기", state.recordDrafts.filter((draft) => draft.status !== "승인 완료").length, "교사 승인 필요")}
-      ${metric("학생 수", state.students.length, "현재 반 명단")}
+      ${metric("풀이 제출", state.attempts.length, "학생용 평가 기록")}
     </section>
     <section class="main-grid">
       <article class="panel wide">
@@ -381,6 +543,7 @@ function renderDashboard() {
         <div class="task-list">
           ${state.documents.map((doc) => task("PDF", doc.title, `${doc.uploadedAt} · ${doc.status}`, "documents")).join("")}
           ${state.students.filter((student) => student.evaluation === "미입력").map((student) => task("평가", `${student.name} 평가 입력 필요`, "루브릭 기준 선택 전", "records")).join("")}
+          ${state.assessments.map((assessment) => task("문제", `${assessment.title} 배포`, `접속 코드 ${assessment.code}`, "assessments")).join("")}
           ${state.recordDrafts.map((draft) => task("문구", `${getStudent(draft.studentId).name} 생활기록부 문구`, draft.status, "drafts")).join("")}
         </div>
       </article>
@@ -388,6 +551,63 @@ function renderDashboard() {
         <div class="panel-header"><div><h3>성취기준 흐름</h3><p>반 전체의 최근 성취 신호입니다.</p></div></div>
         <div class="progress-list">
           ${state.standards.map((standard) => `<label><span>${standard.title}</span><progress max="100" value="${standard.score}"></progress></label>`).join("")}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderAssessments() {
+  return `
+    <section class="two-column">
+      <article class="panel">
+        <div class="panel-header"><div><h3>학생용 평가 만들기</h3><p>접속 코드를 배포하면 학생이 브라우저에서 풉니다.</p></div></div>
+        <form class="form-grid" id="assessmentForm">
+          <label>평가명<input name="title" value="새 형성평가" /></label>
+          <label>접속 코드<input name="code" value="KOR-${new Date().getFullYear()}-${state.assessments.length + 1}" /></label>
+          <label>성취기준<select name="standardId">${state.standards.map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</select></label>
+          <label>문항<input name="prompt" value="글에서 주장을 뒷받침하는 근거를 찾는 방법은?" /></label>
+          <label>정답 선택지<input name="option1" value="주장과 관련 있고 믿을 만한 자료인지 확인한다." /></label>
+          <label>오답 선택지 1<input name="option2" value="가장 긴 문장을 근거로 고른다." /></label>
+          <label>오답 선택지 2<input name="option3" value="처음 나온 문장을 무조건 근거로 고른다." /></label>
+          <button class="primary-button" type="submit">평가 배포</button>
+        </form>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h3>배포된 평가</h3><p>학생 접속 코드를 확인합니다.</p></div></div>
+        <div class="table-list">
+          ${state.assessments.map((assessment) => `<div class="table-row"><strong>${assessment.title}</strong><span>코드 ${assessment.code} · 문항 ${assessment.questions.length}개</span><em>${assessment.status}</em></div>`).join("")}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderAnalytics() {
+  const attempts = state.attempts;
+  const avgScore = attempts.length ? attempts.reduce((sum, item) => sum + item.score / item.total, 0) / attempts.length : 0;
+  const avgTime = attempts.length ? Math.round(attempts.reduce((sum, item) => sum + item.durationSeconds, 0) / attempts.length) : 0;
+  const changes = attempts.reduce((sum, item) => sum + item.changedAnswers, 0);
+  return `
+    <section class="summary-grid">
+      ${metric("평균 정답률", `${Math.round(avgScore * 100)}%`, "제출된 풀이 기준")}
+      ${metric("평균 풀이 시간", `${avgTime}초`, "학생별 제출 로그")}
+      ${metric("답안 수정", changes, "선택 변경 누적")}
+      ${metric("분석 알고리즘", "v0.1", "규칙 기반 초안")}
+    </section>
+    <section class="main-grid">
+      <article class="panel wide">
+        <div class="panel-header"><div><h3>학생별 풀이 패턴</h3><p>정답률, 시간, 답안 수정 횟수를 함께 봅니다.</p></div></div>
+        <div class="table-list">
+          ${attempts.map((attempt) => `<div class="table-row"><strong>${attempt.studentName}</strong><span>${attempt.score}/${attempt.total}점 · ${attempt.durationSeconds}초 · 수정 ${attempt.changedAnswers}회</span><em>${attempt.submittedAt}</em></div>`).join("")}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h3>분석 메모</h3><p>교사와 함께 알고리즘으로 발전시킬 기준입니다.</p></div></div>
+        <div class="insight-grid single">
+          <div><strong>오답 집중</strong><span>근거의 타당성을 묻는 문항에서 선택지 변경이 많습니다.</span></div>
+          <div><strong>관찰 신호</strong><span>수정 횟수가 많은 학생은 개념 혼동 또는 신중한 검토 가능성을 함께 봅니다.</span></div>
+          <div><strong>다음 수업</strong><span>주장-근거 연결을 짧은 재풀이 활동으로 확인합니다.</span></div>
         </div>
       </article>
     </section>
@@ -485,6 +705,7 @@ function renderRecords() {
             ${["A", "B", "C"].map((level) => `<button class="${student.evaluation === level ? "active" : ""}" type="button" data-eval="${student.id}:${level}">${level}</button>`).join("")}
           </div>
           <p class="helper-text">평가를 선택하면 근거 기록과 감사 로그가 함께 갱신됩니다.</p>
+          <button class="ghost-button" type="button" data-generate-draft="${student.id}">문구 초안 생성</button>
         </article>
       `).join("")}
     </section>
@@ -520,22 +741,44 @@ function renderAudit() {
 }
 
 function renderStudentAssessment() {
+  const assessment = state.assessments.find((item) => item.id === state.studentRuntime.assessmentId);
+  if (!assessment) {
+    logout();
+    return;
+  }
   app.innerHTML = `
     <section class="student-shell">
       <article class="student-assessment">
         <p class="eyebrow">Student Assessment</p>
         <h1>${state.session.name} 학생</h1>
-        <p>접속 코드 ${state.session.code}로 형성평가에 입장했습니다.</p>
-        <div class="question-box">
-          <strong>1. 토의에서 타당한 근거가 필요한 까닭을 고르세요.</strong>
-          <label><input type="radio" name="q1" /> 주장을 더 설득력 있게 만들기 위해서</label>
-          <label><input type="radio" name="q1" /> 말하는 시간을 줄이기 위해서</label>
-          <label><input type="radio" name="q1" /> 상대 의견을 기록하지 않기 위해서</label>
-        </div>
-        <button class="primary-button" type="button" onclick="alert('제출 기록이 저장되었습니다.')">제출하기</button>
+        <p>${assessment.title} · 접속 코드 ${state.session.code}</p>
+        ${assessment.questions.map((question, index) => renderStudentQuestion(question, index)).join("")}
+        <button class="primary-button" type="button" data-submit-attempt>제출하기</button>
         <button class="ghost-button" type="button" onclick="logout()">나가기</button>
       </article>
     </section>
+  `;
+  document.querySelectorAll("[data-answer-question]").forEach((input) => {
+    input.addEventListener("change", () => updateStudentAnswer(input.dataset.answerQuestion, input.value));
+  });
+  document.querySelector("[data-submit-attempt]").addEventListener("click", submitStudentAttempt);
+}
+
+function renderStudentQuestion(question, index) {
+  if (question.type === "choice") {
+    return `
+      <div class="question-box">
+        <strong>${index + 1}. ${question.prompt}</strong>
+        ${question.options.map((option) => `<label><input type="radio" name="${question.id}" value="${option}" data-answer-question="${question.id}" /> ${option}</label>`).join("")}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="question-box">
+      <strong>${index + 1}. ${question.prompt}</strong>
+      <textarea rows="4" data-answer-question="${question.id}" placeholder="답을 입력하세요."></textarea>
+    </div>
   `;
 }
 
@@ -567,6 +810,8 @@ function bindRouteEvents() {
     });
   });
   document.querySelectorAll("[data-approve-draft]").forEach((button) => button.addEventListener("click", () => approveDraft(button.dataset.approveDraft)));
+  document.querySelectorAll("[data-generate-draft]").forEach((button) => button.addEventListener("click", () => generateDraft(button.dataset.generateDraft)));
+  document.querySelector("#assessmentForm")?.addEventListener("submit", addAssessment);
 }
 
 render();

@@ -24,6 +24,8 @@
 - `/student/submitted`: 제출 완료
 - `/student/feedback/:attemptId`: 허용된 피드백 확인
 
+현재 정적 SPA MVP에서는 위 경로들을 실제 URL 라우팅이 아니라 좌측 메뉴 기반 화면 전환으로 구현했습니다. 서버 라우팅은 Next.js/Vite 전환 시 연결합니다.
+
 ### Admin
 
 - `/admin/users`: 교사 계정과 권한

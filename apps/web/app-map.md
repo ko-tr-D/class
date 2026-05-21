@@ -15,6 +15,7 @@
 - `/teacher/assessments`
 - `/teacher/analytics`
 - `/teacher/settings`
+- `/teacher/audit-logs`
 
 ## Student
 
