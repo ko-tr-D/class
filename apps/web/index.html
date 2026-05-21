@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>국어수업 성장기록</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="auth-panel" id="authPanel" aria-label="로그인">
+        <div class="brand">
+          <p class="eyebrow">Class Learning Record</p>
+          <h1>국어수업 성장기록</h1>
+          <p>수업 자료, 평가 근거, 학생별 성장 기록을 한곳에서 관리합니다.</p>
+        </div>
+
+        <div class="login-card">
+          <div class="mode-tabs" role="tablist" aria-label="로그인 방식">
+            <button class="mode-tab active" type="button" data-mode="teacher" role="tab" aria-selected="true">
+              교사 로그인
+            </button>
+            <button class="mode-tab" type="button" data-mode="student" role="tab" aria-selected="false">
+              학생 접속
+            </button>
+          </div>
+
+          <form class="login-form" id="teacherLogin" data-form="teacher">
+            <label>
+              이메일
+              <input type="email" name="email" value="teacher@class.local" autocomplete="email" />
+            </label>
+            <label>
+              비밀번호
+              <input type="password" name="password" value="class-record" autocomplete="current-password" />
+            </label>
+            <button class="primary-button" type="submit">대시보드 열기</button>
+            <p class="helper-text">교사는 이메일 계정으로 로그인하고, 반과 학년도 권한에 따라 자료를 봅니다.</p>
+          </form>
+
+          <form class="login-form hidden" id="studentJoin" data-form="student">
+            <label>
+              접속 코드
+              <input type="text" name="code" value="KOR-2026-01" autocomplete="one-time-code" />
+            </label>
+            <label>
+              이름
+              <input type="text" name="studentName" value="김민준" autocomplete="name" />
+            </label>
+            <button class="primary-button" type="submit">문제 풀이 입장</button>
+            <p class="helper-text">학생은 교사가 배포한 평가 코드로 배정된 문제에만 접근합니다.</p>
+          </form>
+        </div>
+      </section>
+
+      <section class="dashboard hidden" id="dashboard" aria-label="교사용 대시보드">
+        <aside class="sidebar">
+          <div class="sidebar-brand">
+            <span class="mark">국</span>
+            <div>
+              <strong>국어수업 성장기록</strong>
+              <small>2026학년도 2학년 국어</small>
+            </div>
+          </div>
+          <nav class="nav-list" aria-label="교사용 메뉴">
+            <a class="active" href="#dashboard">대시보드</a>
+            <a href="#documents">자료함</a>
+            <a href="#rubrics">평가 기준</a>
+            <a href="#students">학생 기록</a>
+            <a href="#drafts">생기부 문구</a>
+            <a href="#analytics">분석실</a>
+          </nav>
+          <div class="security-note">
+            <strong>보안 상태</strong>
+            <span>민감 자료 접근 로그 기록 중</span>
+          </div>
+        </aside>
+
+        <div class="workspace">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">Teacher Dashboard</p>
+              <h2>오늘의 수업 기록 현황</h2>
+            </div>
+            <div class="topbar-actions">
+              <button class="ghost-button" type="button">PDF 업로드</button>
+              <button class="primary-button compact" type="button">평가 만들기</button>
+            </div>
+          </header>
+
+          <section class="summary-grid" aria-label="핵심 지표">
+            <article class="metric-card">
+              <span>검수 대기 PDF</span>
+              <strong>7</strong>
+              <small>오늘 업로드 3건</small>
+            </article>
+            <article class="metric-card">
+              <span>평가 입력률</span>
+              <strong>68%</strong>
+              <small>2학년 3반 기준</small>
+            </article>
+            <article class="metric-card">
+              <span>문구 초안 대기</span>
+              <strong>12</strong>
+              <small>교사 승인 필요</small>
+            </article>
+            <article class="metric-card">
+              <span>학생 풀이 제출</span>
+              <strong>24/29</strong>
+              <small>형성평가 1회</small>
+            </article>
+          </section>
+
+          <section class="main-grid">
+            <article class="panel wide">
+              <div class="panel-header">
+                <div>
+                  <h3>처리할 일</h3>
+                  <p>자료 검수, 평가 입력, 문구 확인을 우선순위로 정리했습니다.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="새로고침">↻</button>
+              </div>
+              <div class="task-list">
+                <button class="task-row" type="button">
+                  <span class="task-badge document">PDF</span>
+                  <span>
+                    <strong>2단원 토의 활동 필기 3쪽 OCR 검수</strong>
+                    <small>업로드: 오늘 09:12 · 성취기준 연결 전</small>
+                  </span>
+                  <em>높음</em>
+                </button>
+                <button class="task-row" type="button">
+                  <span class="task-badge rubric">평가</span>
+                  <span>
+                    <strong>설명하는 글쓰기 수행평가 9명 입력 필요</strong>
+                    <small>마감: 금요일 · 루브릭 4개 기준</small>
+                  </span>
+                  <em>중간</em>
+                </button>
+                <button class="task-row" type="button">
+                  <span class="task-badge draft">문구</span>
+                  <span>
+                    <strong>생활기록부 문구 초안 12건 검토</strong>
+                    <small>AI 초안 생성 완료 · 근거 자료 연결됨</small>
+                  </span>
+                  <em>중간</em>
+                </button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>기록 부족 알림</h3>
+                  <p>최근 근거 자료가 적은 학생입니다.</p>
+                </div>
+              </div>
+              <ul class="student-watch-list">
+                <li><strong>김민준</strong><span>발표 근거 0건</span></li>
+                <li><strong>이서연</strong><span>쓰기 평가 미입력</span></li>
+                <li><strong>박도윤</strong><span>최근 풀이 로그 없음</span></li>
+              </ul>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>성취기준 흐름</h3>
+                  <p>반 전체의 최근 성취 신호입니다.</p>
+                </div>
+              </div>
+              <div class="progress-list">
+                <label>
+                  <span>토의에서 타당한 근거 제시</span>
+                  <progress max="100" value="74"></progress>
+                </label>
+                <label>
+                  <span>글의 구조를 고려한 요약</span>
+                  <progress max="100" value="61"></progress>
+                </label>
+                <label>
+                  <span>매체 자료의 관점 분석</span>
+                  <progress max="100" value="47"></progress>
+                </label>
+              </div>
+            </article>
+
+            <article class="panel wide">
+              <div class="panel-header">
+                <div>
+                  <h3>최근 학생 풀이 패턴</h3>
+                  <p>형성평가 풀이 로그를 바탕으로 한 초기 분석입니다.</p>
+                </div>
+              </div>
+              <div class="insight-grid">
+                <div>
+                  <strong>오답 집중</strong>
+                  <span>4번, 7번 문항에서 선택지 변경 후 오답 비율이 높습니다.</span>
+                </div>
+                <div>
+                  <strong>시간 신호</strong>
+                  <span>서술형 2번 평균 풀이 시간이 반 평균보다 42초 깁니다.</span>
+                </div>
+                <div>
+                  <strong>다음 수업 제안</strong>
+                  <span>근거와 주장 연결 문항을 짧은 재풀이 활동으로 확인합니다.</span>
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+
