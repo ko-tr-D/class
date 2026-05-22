@@ -18,6 +18,12 @@ const seedState = {
     name: "3반",
     subject: "국어",
   },
+  folders: [
+    { id: "folder-unit-2", name: "2단원 토의" },
+    { id: "folder-shared", name: "공통 자료" },
+  ],
+  selectedFolderId: "folder-unit-2",
+  selectedDocumentId: "d1",
   students: [
     { id: "s1", number: "01", name: "김민준", tags: ["발표 보완"], evidence: 1, evaluation: "B" },
     { id: "s2", number: "02", name: "이서연", tags: ["쓰기 강점"], evidence: 3, evaluation: "A" },
@@ -28,6 +34,7 @@ const seedState = {
     {
       id: "d1",
       title: "2단원 토의 활동 필기",
+      folderId: "folder-unit-2",
       fileName: "discussion-notes.pdf",
       uploadedAt: "오늘 09:12",
       status: "검수 대기",
@@ -176,6 +183,8 @@ async function loadDashboardFromApi() {
   state.classInfo = data.classInfo;
   state.students = data.students.map((student) => ({
     id: student.id,
+    grade: student.grade || state.classInfo.grade,
+    className: student.className || state.classInfo.name,
     number: student.number,
     name: student.name,
     tags: student.tags,
@@ -185,6 +194,7 @@ async function loadDashboardFromApi() {
   state.documents = data.documents.map((document) => ({
     id: document.id,
     title: document.title,
+    folderId: document.folder_id || state.selectedFolderId || state.folders[0]?.id,
     fileName: document.original_filename,
     uploadedAt: document.uploaded_at,
     status: document.status,
@@ -241,8 +251,15 @@ function mergeState(base, saved) {
   merged.classInfo = { ...base.classInfo, ...saved.classInfo };
   merged.studentRuntime = { ...base.studentRuntime, ...saved.studentRuntime };
   merged.route = getRouteRenderer(merged.route) ? merged.route : "dashboard";
+  merged.folders = Array.isArray(merged.folders) ? merged.folders : base.folders;
+  merged.selectedFolderId = merged.selectedFolderId || merged.folders[0]?.id || null;
   merged.students = Array.isArray(merged.students) ? merged.students : base.students;
   merged.documents = Array.isArray(merged.documents) ? merged.documents : base.documents;
+  merged.documents = merged.documents.map((document) => ({
+    ...document,
+    folderId: document.folderId || merged.selectedFolderId || base.folders[0]?.id,
+  }));
+  merged.selectedDocumentId = merged.selectedDocumentId || merged.documents[0]?.id || null;
   merged.standards = Array.isArray(merged.standards) ? merged.standards : base.standards;
   merged.rubrics = Array.isArray(merged.rubrics) ? merged.rubrics : base.rubrics;
   merged.recordDrafts = Array.isArray(merged.recordDrafts) ? merged.recordDrafts : base.recordDrafts;
@@ -251,6 +268,8 @@ function mergeState(base, saved) {
   merged.auditLogs = Array.isArray(merged.auditLogs) ? merged.auditLogs : base.auditLogs;
   merged.students = merged.students.map((student) => ({
     ...student,
+    grade: student.grade || base.classInfo.grade,
+    className: student.className || base.classInfo.name,
     evidence: student.evidence ?? student.evidence_count ?? 0,
     tags: Array.isArray(student.tags) ? student.tags : [],
   }));
@@ -364,11 +383,15 @@ async function addStudent(event) {
   const form = new FormData(event.currentTarget);
   const name = form.get("name").trim();
   if (!name) return;
+  const grade = form.get("grade").trim() || state.classInfo.grade;
+  const className = form.get("className").trim() || state.classInfo.name;
   let student = {
     id: `s${Date.now()}`,
+    grade,
+    className,
     number: form.get("number").trim(),
     name,
-    tags: [form.get("tag").trim() || "관찰 필요"],
+    tags: ["관찰 필요"],
     evidence: 0,
     evaluation: "미입력",
   };
@@ -377,7 +400,7 @@ async function addStudent(event) {
       method: "POST",
       body: JSON.stringify({ class_id: state.classInfo.id, number: student.number, name: student.name, tag: student.tags[0] }),
     });
-    student = { id: saved.id, number: saved.number, name: saved.name, tags: saved.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
+    student = { id: saved.id, grade, className, number: saved.number, name: saved.name, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
   } catch (error) {
     console.warn("학생을 브라우저 저장소에만 추가합니다.", error);
   }
@@ -392,9 +415,11 @@ async function addDocument(event) {
   const form = new FormData(event.currentTarget);
   const file = form.get("pdf");
   const title = form.get("title").trim() || file?.name || "새 수업 자료";
+  const folderId = form.get("folderId") || state.selectedFolderId || state.folders[0]?.id;
   let document = {
     id: `d${Date.now()}`,
     title,
+    folderId,
     fileName: file?.name || "uploaded-note.pdf",
     uploadedAt: "방금 전",
     status: "검수 대기",
@@ -414,14 +439,48 @@ async function addDocument(event) {
     upload.set("title", title);
     upload.set("unit", form.get("unit").trim() || "단원 미지정");
     upload.set("class_id", state.classInfo.id);
+    upload.set("folder_id", folderId);
     upload.set("file", file);
     const saved = await apiFetch("/documents", { method: "POST", body: upload });
-    document = { ...document, ...saved };
+    document = { ...document, ...saved, folderId: saved.folder_id || folderId };
   } catch (error) {
     console.warn("PDF를 브라우저 저장소에만 등록합니다.", error);
   }
   state.documents.unshift(document);
+  state.selectedFolderId = folderId;
+  state.selectedDocumentId = document.id;
   audit("upload_document", title);
+  saveState();
+  render();
+}
+
+function addFolder(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const name = form.get("folderName").trim();
+  if (!name) return;
+  const folder = { id: `folder-${Date.now()}`, name };
+  state.folders.push(folder);
+  state.selectedFolderId = folder.id;
+  state.selectedDocumentId = null;
+  audit("create_folder", name);
+  saveState();
+  render();
+}
+
+function selectFolder(folderId) {
+  state.selectedFolderId = folderId;
+  const firstDocument = state.documents.find((document) => document.folderId === folderId);
+  state.selectedDocumentId = firstDocument?.id || null;
+  saveState();
+  render();
+}
+
+function selectDocument(documentId) {
+  const document = state.documents.find((item) => item.id === documentId);
+  if (!document) return;
+  state.selectedDocumentId = document.id;
+  state.selectedFolderId = document.folderId;
   saveState();
   render();
 }
@@ -881,18 +940,19 @@ function renderClasses() {
   return `
     <section class="two-column">
       <article class="panel">
-        <div class="panel-header"><div><h3>${state.classInfo.year} ${state.classInfo.grade} ${state.classInfo.name}</h3><p>교사 권한은 이 반에 한정됩니다.</p></div></div>
+        <div class="panel-header"><div><h3>${state.classInfo.year}</h3><p>학년, 반, 번호, 이름을 등록합니다.</p></div></div>
         <form class="form-grid" id="studentForm">
+          <label>학년<input name="grade" placeholder="예: 2학년" value="${state.classInfo.grade}" /></label>
+          <label>반<input name="className" placeholder="예: 3반" value="${state.classInfo.name}" /></label>
           <label>번호<input name="number" placeholder="05" /></label>
           <label>이름<input name="name" placeholder="학생 이름" /></label>
-          <label>초기 특성<input name="tag" placeholder="예: 발표 강점" /></label>
           <button class="primary-button" type="submit">학생 추가</button>
         </form>
       </article>
       <article class="panel">
         <div class="panel-header"><div><h3>학생 명단</h3><p>학생별 기록 카드와 평가에 연결됩니다.</p></div></div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row"><strong>${student.number}. ${student.name}</strong><span>${student.tags.join(", ")}</span><em>${student.evaluation}</em></div>`).join("")}
+          ${state.students.map((student) => `<div class="table-row"><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${student.number}. ${student.name}</strong><span>등록 완료</span><em>${student.evaluation}</em></div>`).join("")}
         </div>
       </article>
     </section>
@@ -900,36 +960,66 @@ function renderClasses() {
 }
 
 function renderDocuments() {
+  const selectedFolder = state.folders.find((folder) => folder.id === state.selectedFolderId) || state.folders[0];
+  const folderDocuments = state.documents.filter((document) => document.folderId === selectedFolder?.id);
+  const selectedDocument = folderDocuments.find((document) => document.id === state.selectedDocumentId) || folderDocuments[0] || null;
   return `
-    <section class="two-column">
-      <article class="panel">
-        <div class="panel-header"><div><h3>PDF 업로드</h3><p>업로드 후 OCR 결과를 검수합니다.</p></div></div>
+    <section class="document-shell">
+      <aside class="panel document-library">
+        <div class="panel-header"><div><h3>PDF 자료함</h3><p>폴더를 만들고 파일을 관리합니다.</p></div></div>
+        <form class="folder-form" id="folderForm">
+          <input name="folderName" placeholder="새 폴더 이름" />
+          <button class="ghost-button compact" type="submit">폴더 만들기</button>
+        </form>
+        <div class="folder-list" aria-label="PDF 폴더">
+          ${state.folders.map((folder) => `<button class="${folder.id === selectedFolder?.id ? "active" : ""}" type="button" data-folder="${folder.id}"><span>폴더</span><strong>${folder.name}</strong><em>${state.documents.filter((document) => document.folderId === folder.id).length}</em></button>`).join("")}
+        </div>
         <form class="form-grid" id="documentForm">
+          <input type="hidden" name="folderId" value="${selectedFolder?.id || ""}" />
           <label>자료 제목<input name="title" placeholder="예: 3단원 설명문 필기" /></label>
           <label>단원<input name="unit" placeholder="예: 3단원. 설명하는 글" /></label>
           <label>PDF 파일<input name="pdf" type="file" accept="application/pdf" /></label>
           <button class="primary-button" type="submit">업로드 등록</button>
         </form>
-      </article>
-      <article class="panel">
-        <div class="panel-header"><div><h3>OCR 검수</h3><p>수정한 텍스트는 학생 기록 근거로 연결됩니다.</p></div></div>
-        ${state.documents.map(renderDocumentReview).join("")}
-      </article>
+        <div class="file-list" aria-label="PDF 파일">
+          ${folderDocuments.length ? folderDocuments.map((document) => `<button class="${document.id === selectedDocument?.id ? "active" : ""}" type="button" data-document="${document.id}"><strong>${document.title}</strong><span>${document.fileName}</span><em>${document.status}</em></button>`).join("") : `<p class="empty-state">이 폴더에 등록된 PDF가 없습니다.</p>`}
+        </div>
+      </aside>
+      <div class="document-review-stage">
+        ${selectedDocument ? renderDocumentReview(selectedDocument) : `<article class="panel"><div class="panel-header"><div><h3>검수할 파일 없음</h3><p>왼쪽 자료함에서 PDF를 업로드하거나 선택하세요.</p></div></div></article>`}
+      </div>
     </section>
   `;
 }
 
 function renderDocumentReview(document) {
   return `
-    <div class="review-block">
-      <div class="review-title"><strong>${document.title}</strong><span>${document.fileName} · ${document.status}</span></div>
-      ${document.pages.map((page) => `
-        <label>OCR ${page.number}쪽
-          <textarea data-ocr-page="${page.id}" rows="4">${page.corrected}</textarea>
-        </label>
-        <button class="ghost-button" type="button" data-review="${document.id}:${page.id}">${page.reviewed ? "검수 완료됨" : "이 페이지 검수 완료"}</button>
-      `).join("")}
-    </div>
+    <section class="pdf-ocr-split">
+      <article class="panel pdf-preview-panel">
+        <div class="panel-header"><div><h3>PDF 미리보기</h3><p>${document.fileName} · ${document.status}</p></div></div>
+        <div class="pdf-viewer" aria-label="${document.title} PDF 미리보기">
+          ${document.pages.map((page) => `
+            <section class="pdf-page">
+              <div class="pdf-page-header"><strong>${document.title}</strong><span>${page.number}쪽</span></div>
+              <p>${escapeHtml(page.ocr || page.corrected)}</p>
+            </section>
+          `).join("")}
+        </div>
+      </article>
+      <article class="panel ocr-panel">
+        <div class="panel-header"><div><h3>OCR 검수</h3><p>PDF를 보면서 오른쪽 텍스트를 수정합니다.</p></div></div>
+        <div class="ocr-page-list">
+          ${document.pages.map((page) => `
+            <div class="ocr-page-card">
+              <label>OCR ${page.number}쪽
+                <textarea data-ocr-page="${page.id}" rows="7">${page.corrected}</textarea>
+              </label>
+              <button class="ghost-button" type="button" data-review="${document.id}:${page.id}">${page.reviewed ? "검수 완료됨" : "이 페이지 검수 완료"}</button>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    </section>
   `;
 }
 
@@ -1057,6 +1147,7 @@ function bindRouteEvents() {
   document.querySelectorAll("[data-route]").forEach((item) => item.addEventListener("click", () => setRoute(item.dataset.route)));
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("#studentForm")?.addEventListener("submit", addStudent);
+  document.querySelector("#folderForm")?.addEventListener("submit", addFolder);
   document.querySelector("#documentForm")?.addEventListener("submit", addDocument);
   document.querySelector("#rubricForm")?.addEventListener("submit", addRubric);
   document.querySelectorAll("[data-ocr-page]").forEach((textarea) => textarea.addEventListener("input", () => updateOcr(textarea.dataset.ocrPage, textarea.value)));
@@ -1066,6 +1157,8 @@ function bindRouteEvents() {
       approvePage(documentId, pageId);
     });
   });
+  document.querySelectorAll("[data-folder]").forEach((button) => button.addEventListener("click", () => selectFolder(button.dataset.folder)));
+  document.querySelectorAll("[data-document]").forEach((button) => button.addEventListener("click", () => selectDocument(button.dataset.document)));
   document.querySelectorAll("[data-eval]").forEach((button) => {
     button.addEventListener("click", () => {
       const [studentId, level] = button.dataset.eval.split(":");

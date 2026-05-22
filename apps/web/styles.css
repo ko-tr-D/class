@@ -364,6 +364,135 @@ textarea:focus {
   align-items: start;
 }
 
+.document-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.28fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.document-library {
+  display: grid;
+  gap: 16px;
+}
+
+.folder-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.folder-list,
+.file-list,
+.ocr-page-list {
+  display: grid;
+  gap: 8px;
+}
+
+.folder-list button,
+.file-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  text-align: left;
+}
+
+.folder-list button span,
+.file-list button span,
+.folder-list button em,
+.file-list button em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.folder-list button strong,
+.file-list button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-list button.active,
+.file-list button.active {
+  border-color: rgba(36, 107, 91, 0.55);
+  background: #eaf4f0;
+}
+
+.document-review-stage {
+  min-width: 0;
+}
+
+.pdf-ocr-split {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.95fr) minmax(360px, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.pdf-preview-panel,
+.ocr-panel {
+  min-width: 0;
+}
+
+.pdf-viewer {
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 230px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f6;
+}
+
+.pdf-page {
+  min-height: 420px;
+  padding: 28px;
+  border: 1px solid #d5dde7;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.08);
+}
+
+.pdf-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pdf-page p {
+  margin: 24px 0 0;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+.ocr-page-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+}
+
 .record-grid {
   grid-template-columns: repeat(2, minmax(280px, 1fr));
 }
@@ -716,6 +845,8 @@ progress::-webkit-progress-value {
   .summary-grid,
   .insight-grid,
   .two-column,
+  .document-shell,
+  .pdf-ocr-split,
   .record-grid {
     grid-template-columns: 1fr;
   }
