@@ -784,20 +784,20 @@ function renderSidebar() {
 
 function renderTopbar() {
   const titles = {
-    dashboard: ["Teacher Dashboard", "오늘의 수업 기록 현황"],
-    classes: ["Class Management", "반과 학생 명단 관리"],
-    documents: ["Document Review", "PDF 업로드와 OCR 검수"],
-    rubrics: ["Rubrics", "성취기준과 평가 기준표"],
-    records: ["Student Records", "학생별 평가 근거와 성장 기록"],
-    assessments: ["Assessments", "학생용 문제 배포"],
-    analytics: ["Analytics", "성취도와 풀이 패턴 분석"],
-    drafts: ["Record Drafts", "생활기록부 문구 초안"],
-    audit: ["Security Audit", "민감 자료 접근 로그"],
+    dashboard: "오늘의 수업 기록 현황",
+    classes: "반과 학생 명단 관리",
+    documents: "PDF 업로드와 OCR 검수",
+    rubrics: "성취기준과 평가 기준표",
+    records: "학생별 평가 근거와 성장 기록",
+    assessments: "학생용 문제 배포",
+    analytics: "성취도와 풀이 패턴 분석",
+    drafts: "생활기록부 문구 초안",
+    audit: "민감 자료 접근 로그",
   };
-  const [eyebrow, title] = titles[state.route];
+  const title = titles[state.route];
   return `
     <header class="topbar">
-      <div><p class="eyebrow">${eyebrow}</p><h2>${title}</h2></div>
+      <div><h2>${title}</h2></div>
       <div class="topbar-actions">
         <span class="user-chip">${state.session.email}</span>
         <button class="ghost-button" type="button" data-action="logout">로그아웃</button>
