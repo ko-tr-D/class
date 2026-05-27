@@ -15,6 +15,7 @@ from app.core.database import (
     row_to_dict,
     rows_to_dicts,
 )
+from app.core.drive_storage import upload_pdf_to_drive
 from app.core.security import anonymize_for_ai, hash_secret, issue_token, verify_secret
 
 router = APIRouter()
@@ -223,10 +224,19 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
     document_id = new_id("document")
-    document_dir = STORAGE_DIR / "documents"
-    document_dir.mkdir(parents=True, exist_ok=True)
-    storage_path = document_dir / f"{document_id}_{Path(file.filename).name}"
-    storage_path.write_bytes(await file.read())
+    file_bytes = await file.read()
+    drive_web_url = None
+    try:
+        stored_file = upload_pdf_to_drive(file_bytes, file.filename, title=title, unit=unit)
+        storage_path = stored_file.uri
+        drive_web_url = stored_file.web_url
+    except Exception as error:
+        document_dir = STORAGE_DIR / "documents"
+        document_dir.mkdir(parents=True, exist_ok=True)
+        local_path = document_dir / f"{document_id}_{Path(file.filename).name}"
+        local_path.write_bytes(file_bytes)
+        storage_path = str(local_path)
+        audit_log("teacher", user["id"], "drive_upload_fallback", title, {"reason": str(error)})
 
     ocr_text = extract_demo_ocr_text(title, unit)
     page_id = new_id("page")
@@ -236,7 +246,7 @@ async def upload_document(
             INSERT INTO source_documents (id, class_id, title, unit, original_filename, storage_path, status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (document_id, class_id, title, unit, file.filename, str(storage_path), "검수 대기"),
+            (document_id, class_id, title, unit, file.filename, storage_path, "검수 대기"),
         )
         db.execute(
             """
@@ -246,7 +256,7 @@ async def upload_document(
             (page_id, document_id, 1, ocr_text, ocr_text),
         )
     audit_log("teacher", user["id"], "upload_document", title)
-    return {"id": document_id, "title": title, "unit": unit, "fileName": file.filename, "status": "검수 대기", "pages": [{"id": page_id, "number": 1, "ocr": ocr_text, "corrected": ocr_text, "reviewed": False}]}
+    return {"id": document_id, "title": title, "unit": unit, "fileName": file.filename, "storagePath": storage_path, "driveWebUrl": drive_web_url, "status": "검수 대기", "pages": [{"id": page_id, "number": 1, "ocr": ocr_text, "corrected": ocr_text, "reviewed": False}]}
 
 
 @router.patch("/documents/{document_id}/pages/{page_id}")
