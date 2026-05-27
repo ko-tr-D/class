@@ -385,22 +385,24 @@ async function addStudent(event) {
   if (!name) return;
   const grade = form.get("grade").trim() || state.classInfo.grade;
   const className = form.get("className").trim() || state.classInfo.name;
+  const note = form.get("note").trim();
   let student = {
     id: `s${Date.now()}`,
     grade,
     className,
     number: form.get("number").trim(),
     name,
-    tags: ["관찰 필요"],
+    note: note || "비고 없음",
+    tags: [note || "관찰 필요"],
     evidence: 0,
     evaluation: "미입력",
   };
   try {
     const saved = await apiFetch("/students", {
       method: "POST",
-      body: JSON.stringify({ class_id: state.classInfo.id, number: student.number, name: student.name, tag: student.tags[0] }),
+      body: JSON.stringify({ class_id: state.classInfo.id, number: student.number, name: student.name, tag: student.note }),
     });
-    student = { id: saved.id, grade, className, number: saved.number, name: saved.name, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
+    student = { id: saved.id, grade, className, number: saved.number, name: saved.name, note: student.note, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
   } catch (error) {
     console.warn("학생을 브라우저 저장소에만 추가합니다.", error);
   }
@@ -946,13 +948,14 @@ function renderClasses() {
           <label>반<input name="className" placeholder="예: 3반" value="${state.classInfo.name}" /></label>
           <label>번호<input name="number" placeholder="05" /></label>
           <label>이름<input name="name" placeholder="학생 이름" /></label>
+          <label>비고<input name="note" placeholder="예: 발표 보완, 쓰기 강점, 상담 필요" /></label>
           <button class="primary-button" type="submit">학생 추가</button>
         </form>
       </article>
       <article class="panel">
         <div class="panel-header"><div><h3>학생 명단</h3><p>학생별 기록 카드와 평가에 연결됩니다.</p></div></div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row"><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${student.number}. ${student.name}</strong><span>등록 완료</span><em>${student.evaluation}</em></div>`).join("")}
+          ${state.students.map((student) => `<div class="table-row"><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${student.number}. ${student.name}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em></div>`).join("")}
         </div>
       </article>
     </section>
