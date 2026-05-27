@@ -25,6 +25,8 @@ uvicorn app.main:app --reload
 
 개발 서버는 `apps/api` 폴더에서 실행합니다. 웹 프로토타입은 기본적으로 `http://localhost:8000/api`에 연결을 시도하고, 서버가 없으면 브라우저 저장소 기반 데모 모드로 동작합니다.
 
+Supabase PostgreSQL을 쓰려면 `.env.example`을 참고해 `DATABASE_URL`을 설정합니다. 값이 없으면 SQLite 개발 DB를 사용합니다.
+
 ## 모듈
 
 - `auth`: 교사용 이메일 로그인, 역할, 학생 접속 코드

@@ -60,3 +60,5 @@ docs/
 API 서버를 실행하면 브라우저 저장소가 아니라 FastAPI/SQLite 개발 DB에 저장됩니다.
 
 `http://localhost:8000/api`는 웹 화면이 아니라 API 서버 주소입니다. 웹앱 미리보기는 `apps/web/index.html`을 직접 열거나, `node apps/web/preview-server.mjs` 실행 후 `http://127.0.0.1:4173`으로 접속합니다.
+
+운영 DB는 Supabase PostgreSQL을 기준으로 준비했습니다. `apps/api/.env.example`의 `DATABASE_URL`에 Supabase 연결 문자열을 넣으면 API가 SQLite 대신 Supabase PostgreSQL에 연결합니다. 자세한 계획은 `docs/deployment-supabase.md`를 봅니다.

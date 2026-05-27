@@ -1,35 +1,72 @@
 import json
+import os
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 STORAGE_DIR = BASE_DIR / "storage"
 DB_PATH = DATA_DIR / "class_learning_record.sqlite3"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+
+class DatabaseConnection(Protocol):
+    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Any: ...
+    def executescript(self, sql: str) -> Any: ...
+    def __enter__(self) -> "DatabaseConnection": ...
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
+
+
+class PostgresConnection:
+    def __init__(self, database_url: str):
+        import psycopg
+        from psycopg.rows import dict_row
+
+        self.connection = psycopg.connect(database_url, row_factory=dict_row)
+
+    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Any:
+        return self.connection.execute(sql.replace("?", "%s"), parameters)
+
+    def executescript(self, sql: str) -> None:
+        for statement in sql.split(";"):
+            if statement.strip():
+                self.execute(statement)
+
+    def __enter__(self) -> "PostgresConnection":
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if exc_type:
+            self.connection.rollback()
+        else:
+            self.connection.commit()
+        self.connection.close()
 
 
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection() -> DatabaseConnection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    if DATABASE_URL.startswith(("postgres://", "postgresql://")):
+        return PostgresConnection(DATABASE_URL)
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
-def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+def row_to_dict(row: Any | None) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(row)
 
 
-def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
+def rows_to_dicts(rows: list[Any]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
@@ -183,7 +220,7 @@ def init_db() -> None:
         seed_demo_data(db)
 
 
-def seed_demo_data(db: sqlite3.Connection) -> None:
+def seed_demo_data(db: DatabaseConnection) -> None:
     from app.core.security import hash_secret
 
     user_count = db.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"]
