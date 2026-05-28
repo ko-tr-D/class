@@ -31,8 +31,20 @@ def startup() -> None:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, str | bool | None]:
+    database_url = os.getenv("DATABASE_URL", "")
+    parsed = urlparse(database_url) if database_url else None
+    return {
+        "status": "ok",
+        "version": "2026-05-28.4",
+        "database_url_present": bool(database_url),
+        "database_url_scheme": parsed.scheme if parsed else None,
+        "database_url_host": parsed.hostname if parsed else None,
+        "database_url_user": parsed.username if parsed else None,
+        "database_url_password_present": bool(parsed.password) if parsed else False,
+        "google_drive_root_present": bool(os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID", "")),
+        "google_credentials_json_present": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")),
+    }
 
 
 @app.get("/api/system/status")
