@@ -1,5 +1,10 @@
 const STORAGE_KEY = "class-learning-record-state-v1";
-const API_BASE = localStorage.getItem("class-learning-record-api") || "http://localhost:8000/api";
+const DEFAULT_API_BASE = "https://class-learning-record-api.onrender.com/api";
+const storedApiBase = localStorage.getItem("class-learning-record-api");
+const API_BASE =
+  location.hostname.includes("github.io") && storedApiBase?.includes("localhost")
+    ? DEFAULT_API_BASE
+    : storedApiBase || DEFAULT_API_BASE;
 
 const seedState = {
   session: null,
