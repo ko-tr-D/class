@@ -36,30 +36,33 @@ def health() -> dict[str, str]:
 
 @app.get("/api/system/status")
 def system_status() -> dict[str, object]:
-    database_ok = False
-    database_error = None
     table_counts: dict[str, int | None] = {}
-    try:
-        with get_connection() as db:
-            db.execute("SELECT 1")
-            for table in ("users", "school_classes", "students", "standards", "assessments"):
-                try:
-                    row = db.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()
-                    table_counts[table] = row["count"]
-                except Exception:
-                    table_counts[table] = None
-        database_ok = True
-    except Exception as error:
-        database_error = error.__class__.__name__
+    database_error = None
+    with get_connection() as db:
+        db.execute("SELECT 1")
+        for table in ("users", "school_classes", "students", "standards", "assessments"):
+            try:
+                row = db.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()
+                table_counts[table] = row["count"]
+            except Exception as error:
+                table_counts[table] = None
+                database_error = error.__class__.__name__
 
     return {
         "api": "ok",
-        "database": "ok" if database_ok else "error",
+        "database": "ok" if database_error is None else "partial",
         "database_error": database_error,
         "table_counts": table_counts,
         "drive": "configured" if is_drive_configured() else "not_configured",
         "web_origin": os.getenv("WEB_ORIGIN", ""),
     }
+
+
+@app.get("/api/system/db-ping")
+def system_db_ping() -> dict[str, str]:
+    with get_connection() as db:
+        db.execute("SELECT 1")
+    return {"database": "ok"}
 
 
 @app.post("/api/system/init-db")
