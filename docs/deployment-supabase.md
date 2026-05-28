@@ -29,12 +29,39 @@ Use Supabase's Session pooler connection string for deployed API servers. Supaba
 - Database: Supabase PostgreSQL
 - File bucket: `class-documents`
 
+## Render API Deployment
+
+The repository includes `render.yaml` for a Render Web Service.
+
+Render settings:
+
+- Root Directory: `apps/api`
+- Runtime: Python
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health Check Path: `/health`
+
+Render environment variables:
+
+```env
+DATABASE_URL=postgresql://...
+WEB_ORIGIN=https://ko-tr-d.github.io
+GOOGLE_APPLICATION_CREDENTIALS_JSON={...service account json...}
+GOOGLE_DRIVE_ROOT_FOLDER_ID=YOUR-GOOGLE-DRIVE-FOLDER-ID
+```
+
+After Render creates the service, copy its URL and set the web app API endpoint:
+
+```js
+localStorage.setItem("class-learning-record-api", "https://YOUR-RENDER-SERVICE.onrender.com/api")
+```
+
 ## What The Teacher Needs To Do
 
 1. Create a Supabase project.
 2. Copy the PostgreSQL connection string.
 3. Share the Google Drive root folder with the service account email as Editor.
-4. Keep the service account JSON key outside GitHub and reference it from `.env`.
+4. Keep the service account JSON key outside GitHub. In Render, paste the JSON into `GOOGLE_APPLICATION_CREDENTIALS_JSON`.
 5. Give Codex the project URL and database connection string when ready.
 6. Choose a site domain name.
 

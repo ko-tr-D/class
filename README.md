@@ -72,3 +72,13 @@ GitHub Pages 미리보기용 파일은 `docs/index.html`, `docs/app.js`, `docs/s
 ```text
 https://ko-tr-d.github.io/class/
 ```
+
+## Render API
+
+FastAPI 서버는 Render Web Service로 배포할 수 있도록 `render.yaml`을 추가했습니다. Render 배포 후 생성되는 API 주소는 웹앱에서 아래처럼 설정할 수 있습니다.
+
+```js
+localStorage.setItem("class-learning-record-api", "https://YOUR-RENDER-SERVICE.onrender.com/api")
+```
+
+운영 단계에서는 이 값을 웹앱 기본값으로 고정합니다.

@@ -27,6 +27,21 @@ uvicorn app.main:app --reload
 
 Supabase PostgreSQL을 쓰려면 `.env.example`을 참고해 `DATABASE_URL`을 설정합니다. 값이 없으면 SQLite 개발 DB를 사용합니다.
 
+## Render 배포
+
+저장소 루트의 `render.yaml`로 Render Web Service를 만들 수 있습니다.
+
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Health Check Path: `/health`
+
+Render 환경변수에는 다음 값을 넣습니다.
+
+- `DATABASE_URL`: Supabase PostgreSQL connection string
+- `WEB_ORIGIN`: `https://ko-tr-d.github.io`
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON`: 서비스 계정 JSON 전체 내용
+- `GOOGLE_DRIVE_ROOT_FOLDER_ID`: Google Drive 최상위 폴더 ID
+
 ## 모듈
 
 - `auth`: 교사용 이메일 로그인, 역할, 학생 접속 코드

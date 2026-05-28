@@ -1,5 +1,7 @@
 import mimetypes
 import os
+import json
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,9 +16,25 @@ class StoredFile:
 
 
 def is_drive_configured() -> bool:
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    credentials_path = get_credentials_path()
     root_folder_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID", "")
     return bool(credentials_path and root_folder_id and Path(credentials_path).exists())
+
+
+def get_credentials_path() -> str:
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if credentials_path and Path(credentials_path).exists():
+        return credentials_path
+
+    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
+    if not credentials_json:
+        return ""
+
+    target = Path(tempfile.gettempdir()) / "class-record-google-service-account.json"
+    if not target.exists():
+        parsed = json.loads(credentials_json)
+        target.write_text(json.dumps(parsed), encoding="utf-8")
+    return str(target)
 
 
 def upload_pdf_to_drive(file_bytes: bytes, filename: str, *, title: str, unit: str) -> StoredFile:
@@ -28,7 +46,7 @@ def upload_pdf_to_drive(file_bytes: bytes, filename: str, *, title: str, unit: s
     from googleapiclient.http import MediaInMemoryUpload
 
     credentials = service_account.Credentials.from_service_account_file(
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
+        get_credentials_path(),
         scopes=["https://www.googleapis.com/auth/drive.file"],
     )
     service = build("drive", "v3", credentials=credentials, cache_discovery=False)
@@ -90,4 +108,3 @@ def find_child_folder(service, parent_id: str, name: str) -> str | None:
     )
     files = response.get("files", [])
     return files[0]["id"] if files else None
-
