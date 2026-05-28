@@ -1,5 +1,6 @@
 import logging
 import os
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,15 +39,14 @@ def health() -> dict[str, str]:
 def system_status() -> dict[str, object]:
     table_counts: dict[str, int | None] = {}
     database_error = None
-    with get_connection() as db:
-        db.execute("SELECT 1")
-        for table in ("users", "school_classes", "students", "standards", "assessments"):
-            try:
+    try:
+        with get_connection() as db:
+            db.execute("SELECT 1")
+            for table in ("users", "school_classes", "students", "standards", "assessments"):
                 row = db.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()
                 table_counts[table] = row["count"]
-            except Exception as error:
-                table_counts[table] = None
-                database_error = error.__class__.__name__
+    except Exception as error:
+        database_error = f"{error.__class__.__name__}: {str(error)[:160]}"
 
     return {
         "api": "ok",
@@ -59,10 +59,27 @@ def system_status() -> dict[str, object]:
 
 
 @app.get("/api/system/db-ping")
-def system_db_ping() -> dict[str, str]:
-    with get_connection() as db:
-        db.execute("SELECT 1")
-    return {"database": "ok"}
+def system_db_ping() -> dict[str, str | bool | None]:
+    try:
+        with get_connection() as db:
+            db.execute("SELECT 1")
+        return {"database": "ok", "error": None}
+    except Exception as error:
+        return {"database": "error", "error": error.__class__.__name__, "message": str(error)[:160]}
+
+
+@app.get("/api/system/env-check")
+def system_env_check() -> dict[str, str | bool | None]:
+    database_url = os.getenv("DATABASE_URL", "")
+    parsed = urlparse(database_url) if database_url else None
+    return {
+        "database_url_present": bool(database_url),
+        "database_url_scheme": parsed.scheme if parsed else None,
+        "database_url_host": parsed.hostname if parsed else None,
+        "database_url_user": parsed.username if parsed else None,
+        "database_url_password_present": bool(parsed.password) if parsed else False,
+        "drive_configured": is_drive_configured(),
+    }
 
 
 @app.post("/api/system/init-db")
