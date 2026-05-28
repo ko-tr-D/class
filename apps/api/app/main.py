@@ -39,9 +39,7 @@ def system_status() -> dict[str, object]:
     database_ok = False
     database_error = None
     table_counts: dict[str, int | None] = {}
-    init_error = None
     try:
-        init_db()
         with get_connection() as db:
             db.execute("SELECT 1")
             for table in ("users", "school_classes", "students", "standards", "assessments"):
@@ -53,17 +51,21 @@ def system_status() -> dict[str, object]:
         database_ok = True
     except Exception as error:
         database_error = error.__class__.__name__
-        init_error = str(error)[:240]
 
     return {
         "api": "ok",
         "database": "ok" if database_ok else "error",
         "database_error": database_error,
-        "database_init_error": init_error,
         "table_counts": table_counts,
         "drive": "configured" if is_drive_configured() else "not_configured",
         "web_origin": os.getenv("WEB_ORIGIN", ""),
     }
+
+
+@app.post("/api/system/init-db")
+def system_init_db() -> dict[str, str]:
+    init_db()
+    return {"database": "initialized"}
 
 
 @app.get("/roadmap")
