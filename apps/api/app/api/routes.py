@@ -211,6 +211,20 @@ def create_student(payload: StudentCreateRequest, user: dict[str, Any] = Depends
     return {"id": student_id, "class_id": payload.class_id, "number": payload.number, "name": payload.name, "tags": tags, "evidence_count": 0, "evaluation": "미입력"}
 
 
+@router.delete("/students/{student_id}")
+def delete_student(student_id: str, user: dict[str, Any] = Depends(require_teacher)) -> dict[str, str]:
+    with get_connection() as db:
+        student = row_to_dict(db.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone())
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        verify_class_permission(user["id"], student["class_id"])
+        db.execute("UPDATE attempts SET student_id = NULL WHERE student_id = ?", (student_id,))
+        db.execute("DELETE FROM record_drafts WHERE student_id = ?", (student_id,))
+        db.execute("DELETE FROM students WHERE id = ?", (student_id,))
+    audit_log("teacher", user["id"], "delete_student", student_id, {"student_name": student["name"]})
+    return {"id": student_id, "status": "deleted"}
+
+
 @router.post("/documents")
 async def upload_document(
     title: str = Form(...),

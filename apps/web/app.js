@@ -383,19 +383,45 @@ function logout() {
   render();
 }
 
+function normalizeGrade(value, fallback = state.classInfo.grade) {
+  return normalizeKoreanUnit(value, "학년", fallback);
+}
+
+function normalizeClassName(value, fallback = state.classInfo.name) {
+  return normalizeKoreanUnit(value, "반", fallback);
+}
+
+function normalizeStudentNumber(value) {
+  return normalizeKoreanUnit(value, "번", "");
+}
+
+function normalizeKoreanUnit(value, unit, fallback) {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  if (/^\d+$/.test(raw)) return `${Number(raw)}${unit}`;
+  return raw.endsWith(unit) ? raw : raw;
+}
+
+function displayStudentNumber(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.endsWith("번") ? raw : `${raw}.`;
+}
+
 async function addStudent(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const name = form.get("name").trim();
   if (!name) return;
-  const grade = form.get("grade").trim() || state.classInfo.grade;
-  const className = form.get("className").trim() || state.classInfo.name;
+  const grade = normalizeGrade(form.get("grade"));
+  const className = normalizeClassName(form.get("className"));
+  const number = normalizeStudentNumber(form.get("number"));
   const note = form.get("note").trim();
   let student = {
     id: `s${Date.now()}`,
     grade,
     className,
-    number: form.get("number").trim(),
+    number,
     name,
     note: note || "비고 없음",
     tags: [note || "관찰 필요"],
@@ -415,6 +441,27 @@ async function addStudent(event) {
   audit("create_student", name);
   saveState();
   render();
+}
+
+async function deleteStudents(studentIds) {
+  if (!studentIds.length) return;
+  const names = state.students.filter((student) => studentIds.includes(student.id)).map((student) => student.name).join(", ");
+  if (!confirm(`${names} 학생 기록을 삭제할까요?`)) return;
+  state.students = state.students.filter((student) => !studentIds.includes(student.id));
+  state.recordDrafts = state.recordDrafts.filter((draft) => !studentIds.includes(draft.studentId));
+  if (state.session?.accessToken) {
+    await Promise.allSettled(
+      studentIds.map((studentId) => apiFetch(`/students/${studentId}`, { method: "DELETE" })),
+    );
+  }
+  audit("delete_student", names);
+  saveState();
+  render();
+}
+
+function deleteSelectedStudents() {
+  const selectedIds = [...document.querySelectorAll("[data-student-select]:checked")].map((item) => item.value);
+  deleteStudents(selectedIds);
 }
 
 async function addDocument(event) {
@@ -958,9 +1005,12 @@ function renderClasses() {
         </form>
       </article>
       <article class="panel">
-        <div class="panel-header"><div><h3>학생 명단</h3><p>학생별 기록 카드와 평가에 연결됩니다.</p></div></div>
+        <div class="panel-header">
+          <div><h3>학생 명단</h3><p>학생별 기록 카드와 평가에 연결됩니다.</p></div>
+          <button class="ghost-button compact danger-button" type="button" data-delete-selected-students>선택 삭제</button>
+        </div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row"><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${student.number}. ${student.name}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em></div>`).join("")}
+          ${state.students.map((student) => `<div class="table-row student-row"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${displayStudentNumber(student.number)} ${student.name}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
         </div>
       </article>
     </section>
@@ -1155,6 +1205,8 @@ function bindRouteEvents() {
   document.querySelectorAll("[data-route]").forEach((item) => item.addEventListener("click", () => setRoute(item.dataset.route)));
   document.querySelector("[data-action='logout']")?.addEventListener("click", logout);
   document.querySelector("#studentForm")?.addEventListener("submit", addStudent);
+  document.querySelector("[data-delete-selected-students]")?.addEventListener("click", deleteSelectedStudents);
+  document.querySelectorAll("[data-delete-student]").forEach((button) => button.addEventListener("click", () => deleteStudents([button.dataset.deleteStudent])));
   document.querySelector("#folderForm")?.addEventListener("submit", addFolder);
   document.querySelector("#documentForm")?.addEventListener("submit", addDocument);
   document.querySelector("#rubricForm")?.addEventListener("submit", addRubric);
