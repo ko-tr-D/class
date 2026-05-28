@@ -31,7 +31,7 @@ def startup() -> None:
 
 
 @app.get("/health")
-def health() -> dict[str, str | bool | None]:
+def health() -> dict:
     database_url = os.getenv("DATABASE_URL", "")
     parsed = urlparse(database_url) if database_url else None
     return {
