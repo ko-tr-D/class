@@ -411,6 +411,7 @@ function displayStudentNumber(value) {
 
 async function addStudent(event) {
   event.preventDefault();
+  const studentForm = event.currentTarget;
   const form = new FormData(event.currentTarget);
   const name = form.get("name").trim();
   if (!name) return;
@@ -418,8 +419,9 @@ async function addStudent(event) {
   const className = normalizeClassName(form.get("className"));
   const number = normalizeStudentNumber(form.get("number"));
   const note = form.get("note").trim();
-  let student = {
-    id: `s${Date.now()}`,
+  const localId = `pending_${Date.now()}`;
+  const student = {
+    id: localId,
     grade,
     className,
     number,
@@ -428,36 +430,56 @@ async function addStudent(event) {
     tags: [note || "관찰 필요"],
     evidence: 0,
     evaluation: "미입력",
+    syncStatus: state.session?.accessToken ? "saving" : "local",
   };
+  state.students.unshift(student);
+  audit("create_student", name);
+  saveState();
+  studentForm.reset();
+  render();
+
+  if (!state.session?.accessToken) return;
+
   try {
     const saved = await apiFetch("/students", {
       method: "POST",
       body: JSON.stringify({ class_id: state.classInfo.id, grade: student.grade, class_name: student.className, number: student.number, name: student.name, note: student.note, tag: student.note }),
     });
-    student = { id: saved.id, grade: saved.grade_level || grade, className: saved.class_name || className, number: saved.number, name: saved.name, note: saved.note || student.note, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
+    state.students = state.students.map((item) =>
+      item.id === localId
+        ? { id: saved.id, grade: saved.grade_level || grade, className: saved.class_name || className, number: saved.number, name: saved.name, note: saved.note || student.note, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation, syncStatus: "synced" }
+        : item
+    );
   } catch (error) {
-    console.warn("학생을 브라우저 저장소에만 추가합니다.", error);
+    state.students = state.students.map((item) => (item.id === localId ? { ...item, syncStatus: "error" } : item));
+    console.warn("학생 저장에 실패했습니다.", error);
   }
-  state.students.push(student);
-  audit("create_student", name);
   saveState();
-  if (state.session?.accessToken) await loadDashboardFromApi();
   render();
 }
 
 async function deleteStudents(studentIds) {
   if (!studentIds.length) return;
-  const names = state.students.filter((student) => studentIds.includes(student.id)).map((student) => student.name).join(", ");
+  const removedStudents = state.students.filter((student) => studentIds.includes(student.id));
+  const names = removedStudents.map((student) => student.name).join(", ");
   if (!confirm(`${names} 학생 기록을 삭제할까요?`)) return;
   state.students = state.students.filter((student) => !studentIds.includes(student.id));
   state.recordDrafts = state.recordDrafts.filter((draft) => !studentIds.includes(draft.studentId));
-  if (state.session?.accessToken) {
-    await Promise.allSettled(studentIds.map((studentId) => apiFetch(`/students/${studentId}`, { method: "DELETE" })));
-    await loadDashboardFromApi();
-  }
   audit("delete_student", names);
   saveState();
   render();
+
+  if (state.session?.accessToken) {
+    const serverIds = removedStudents.filter((student) => !String(student.id).startsWith("pending_")).map((student) => student.id);
+    const results = await Promise.allSettled(serverIds.map((studentId) => apiFetch(`/students/${studentId}`, { method: "DELETE" })));
+    const failedIds = serverIds.filter((_, index) => results[index]?.status === "rejected");
+    if (failedIds.length) {
+      const failedStudents = removedStudents.filter((student) => failedIds.includes(student.id)).map((student) => ({ ...student, syncStatus: "error" }));
+      state.students = [...failedStudents, ...state.students];
+      saveState();
+      render();
+    }
+  }
 }
 
 function deleteSelectedStudents() {
@@ -1011,7 +1033,7 @@ function renderClasses() {
           <button class="ghost-button compact danger-button" type="button" data-delete-selected-students>선택 삭제</button>
         </div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row student-row"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${[student.grade, student.className, displayStudentNumber(student.number), student.name].filter(Boolean).join(" ")}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
+          ${state.students.map((student) => `<div class="table-row student-row ${student.syncStatus ? `sync-${student.syncStatus}` : ""}"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${[student.grade, student.className, displayStudentNumber(student.number), student.name].filter(Boolean).join(" ")}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.syncStatus === "saving" ? "저장 중" : student.syncStatus === "error" ? "저장 실패" : student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
         </div>
       </article>
     </section>

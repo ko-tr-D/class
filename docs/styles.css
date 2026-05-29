@@ -713,6 +713,26 @@ progress::-webkit-progress-value {
   grid-template-columns: auto minmax(150px, 0.9fr) minmax(0, 1fr) auto auto;
 }
 
+.student-row.sync-saving {
+  border-color: #b7d5ff;
+  background: #f4f9ff;
+}
+
+.student-row.sync-saving em {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.student-row.sync-error {
+  border-color: #efb5b5;
+  background: #fff7f7;
+}
+
+.student-row.sync-error em {
+  color: #a33a3a;
+  font-weight: 800;
+}
+
 .student-check {
   display: grid;
   place-items: center;
