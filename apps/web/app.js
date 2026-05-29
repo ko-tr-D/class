@@ -1,10 +1,13 @@
 const STORAGE_KEY = "class-learning-record-state-v2";
 const DEFAULT_API_BASE = "https://class-learning-record-api.onrender.com/api";
 const storedApiBase = localStorage.getItem("class-learning-record-api");
+const isPreviewHost = ["127.0.0.1", "localhost"].includes(location.hostname) || location.hostname.includes("github.io");
+const isLocalApiOverride = storedApiBase?.includes("localhost") || storedApiBase?.includes("127.0.0.1");
 const API_BASE =
-  location.hostname.includes("github.io") && storedApiBase?.includes("localhost")
+  isPreviewHost && isLocalApiOverride
     ? DEFAULT_API_BASE
     : storedApiBase || DEFAULT_API_BASE;
+if (isPreviewHost && isLocalApiOverride) localStorage.removeItem("class-learning-record-api");
 
 const seedState = {
   session: null,
@@ -157,6 +160,7 @@ const seedState = {
 };
 
 let state = loadState();
+if (state.session?.type === "teacher" && !state.session.accessToken) state.session = null;
 const app = document.querySelector("#app");
 
 window.addEventListener("error", (event) => {
@@ -1230,4 +1234,15 @@ function bindRouteEvents() {
   document.querySelector("#assessmentForm")?.addEventListener("submit", addAssessment);
 }
 
-render();
+boot();
+
+async function boot() {
+  if (state.session?.type === "teacher" && state.session.accessToken) {
+    try {
+      await loadDashboardFromApi();
+    } catch (error) {
+      console.warn("저장된 교사 세션으로 최신 명단을 불러오지 못했습니다.", error);
+    }
+  }
+  render();
+}
