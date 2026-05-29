@@ -180,9 +180,20 @@ async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ detail: "API 요청 실패" }));
-    throw new Error(detail.detail || "API 요청 실패");
+    const error = new Error(detail.detail || "API 요청 실패");
+    error.status = response.status;
+    throw error;
   }
   return response.json();
+}
+
+function isAuthError(error) {
+  return error?.status === 401 || error?.status === 403;
+}
+
+function expireTeacherSession() {
+  state.session = null;
+  saveState();
 }
 
 async function loadDashboardFromApi() {
@@ -484,6 +495,12 @@ async function addStudent(event) {
         : item
     );
   } catch (error) {
+    if (isAuthError(error)) {
+      expireTeacherSession();
+      alert("로그인이 만료되었습니다. 다시 로그인한 뒤 저장해 주세요.");
+      render();
+      return;
+    }
     state.students = state.students.map((item) => (item.id === localId ? { ...item, syncStatus: "error" } : item));
     console.warn("학생 저장에 실패했습니다.", error);
   }
@@ -1294,6 +1311,11 @@ async function boot() {
     try {
       await loadDashboardFromApi();
     } catch (error) {
+      if (isAuthError(error)) {
+        expireTeacherSession();
+        render();
+        return;
+      }
       console.warn("저장된 교사 세션으로 최신 명단을 불러오지 못했습니다.", error);
     }
   }
