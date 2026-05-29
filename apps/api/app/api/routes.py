@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 from time import monotonic
 from typing import Any
 
@@ -33,8 +33,11 @@ class StudentJoinRequest(BaseModel):
 
 class StudentCreateRequest(BaseModel):
     class_id: str = "class_2026_2_3"
+    grade: str | None = None
+    class_name: str | None = None
     number: str
     name: str
+    note: str | None = None
     tag: str | None = None
 
 
@@ -178,7 +181,7 @@ def dashboard(user: dict[str, Any] = Depends(require_teacher)) -> dict[str, Any]
 def student_join(payload: StudentJoinRequest) -> dict[str, Any]:
     code_hash = hash_secret(payload.code)
     with get_connection() as db:
-        assessment = row_to_dict(db.execute("SELECT * FROM assessments WHERE code_hash = ? AND status = '배포 중'", (code_hash,)).fetchone())
+        assessment = row_to_dict(db.execute("SELECT * FROM assessments WHERE code_hash = ? AND status = '諛고룷 以?", (code_hash,)).fetchone())
     if not assessment:
         raise HTTPException(status_code=404, detail="Invalid or expired access code")
     audit_log("student", None, "student_join", payload.code, {"student_name": payload.student_name})
@@ -198,18 +201,18 @@ def student_join(payload: StudentJoinRequest) -> dict[str, Any]:
 def create_student(payload: StudentCreateRequest, user: dict[str, Any] = Depends(require_teacher)) -> dict[str, Any]:
     verify_class_permission(user["id"], payload.class_id)
     student_id = new_id("student")
-    tags = [payload.tag] if payload.tag else ["관찰 필요"]
+    note = payload.note or payload.tag or ""
+    tags = [note] if note else ["관찰 필요"]
     with get_connection() as db:
         db.execute(
             """
-            INSERT INTO students (id, class_id, number, name, tags)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO students (id, class_id, grade_level, class_name, number, name, note, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (student_id, payload.class_id, payload.number, payload.name, encode_json(tags)),
+            (student_id, payload.class_id, payload.grade or "", payload.class_name or "", payload.number, payload.name, note, encode_json(tags)),
         )
     audit_log("teacher", user["id"], "create_student", payload.name)
-    return {"id": student_id, "class_id": payload.class_id, "number": payload.number, "name": payload.name, "tags": tags, "evidence_count": 0, "evaluation": "미입력"}
-
+    return {"id": student_id, "class_id": payload.class_id, "grade_level": payload.grade or "", "class_name": payload.class_name or "", "number": payload.number, "name": payload.name, "note": note, "tags": tags, "evidence_count": 0, "evaluation": "미입력"}
 
 @router.delete("/students/{student_id}")
 def delete_student(student_id: str, user: dict[str, Any] = Depends(require_teacher)) -> dict[str, str]:
@@ -424,7 +427,7 @@ def audit_logs(user: dict[str, Any] = Depends(require_teacher)) -> list[dict[str
 
 
 def extract_demo_ocr_text(title: str, unit: str) -> str:
-    return f"{unit} 자료 '{title}'에서 추출한 OCR 초안입니다. 실제 OCR 공급자 연결 전까지 검수 화면의 데이터 흐름을 확인하기 위한 텍스트입니다."
+    return f"{unit} 자료 '{title}'에서 추출한 OCR 초안입니다. 실제 OCR 공급자 연결 전까지 검수 화면과 데이터 흐름을 확인하기 위한 텍스트입니다."
 
 
 def grade_responses(questions: list[dict[str, Any]], responses: dict[str, str]) -> int:
@@ -445,4 +448,4 @@ def build_record_draft(student: dict[str, Any], attempts: list[dict[str, Any]]) 
         performance = f"최근 평가에서 {latest['score']}/{latest['total']}점을 기록하고 답안 수정 {latest['changed_answers']}회를 보이며"
     else:
         performance = "수업 활동 기록을 바탕으로"
-    return f"{student['name']}은 {tags} 특성이 관찰되며, {performance} 자신의 이해를 점검하려는 태도를 보임. 평가 근거를 바탕으로 강점과 보완점을 다음 활동에 반영하려는 성장이 기대됨."
+    return f"{student['name']}은 {tags or '수업 참여'} 특성이 관찰되며, {performance} 자신의 이해를 점검하려는 태도를 보임. 평가 근거를 바탕으로 강점과 보완점을 다음 활동에 반영하려는 성장이 기대됨."

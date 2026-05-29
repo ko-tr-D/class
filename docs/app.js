@@ -192,10 +192,11 @@ async function loadDashboardFromApi() {
   state.classInfo = data.classInfo;
   state.students = data.students.map((student) => ({
     id: student.id,
-    grade: student.grade || state.classInfo.grade,
-    className: student.className || state.classInfo.name,
+    grade: student.grade || student.grade_level || "",
+    className: student.className || student.class_name || "",
     number: student.number,
     name: student.name,
+    note: student.note || student.tags?.[0] || "",
     tags: student.tags,
     evidence: student.evidence_count,
     evaluation: student.evaluation,
@@ -435,15 +436,16 @@ async function addStudent(event) {
   try {
     const saved = await apiFetch("/students", {
       method: "POST",
-      body: JSON.stringify({ class_id: state.classInfo.id, number: student.number, name: student.name, tag: student.note }),
+      body: JSON.stringify({ class_id: state.classInfo.id, grade: student.grade, class_name: student.className, number: student.number, name: student.name, note: student.note, tag: student.note }),
     });
-    student = { id: saved.id, grade, className, number: saved.number, name: saved.name, note: student.note, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
+    student = { id: saved.id, grade: saved.grade_level || grade, className: saved.class_name || className, number: saved.number, name: saved.name, note: saved.note || student.note, tags: saved.tags || student.tags, evidence: saved.evidence_count, evaluation: saved.evaluation };
   } catch (error) {
     console.warn("학생을 브라우저 저장소에만 추가합니다.", error);
   }
   state.students.push(student);
   audit("create_student", name);
   saveState();
+  if (state.session?.accessToken) await loadDashboardFromApi();
   render();
 }
 
@@ -454,9 +456,8 @@ async function deleteStudents(studentIds) {
   state.students = state.students.filter((student) => !studentIds.includes(student.id));
   state.recordDrafts = state.recordDrafts.filter((draft) => !studentIds.includes(draft.studentId));
   if (state.session?.accessToken) {
-    await Promise.allSettled(
-      studentIds.map((studentId) => apiFetch(`/students/${studentId}`, { method: "DELETE" })),
-    );
+    await Promise.allSettled(studentIds.map((studentId) => apiFetch(`/students/${studentId}`, { method: "DELETE" })));
+    await loadDashboardFromApi();
   }
   audit("delete_student", names);
   saveState();
@@ -1000,9 +1001,9 @@ function renderClasses() {
       <article class="panel">
         <div class="panel-header"><div><h3>${state.classInfo.year}</h3><p>학년, 반, 번호, 이름을 등록합니다.</p></div></div>
         <form class="form-grid" id="studentForm">
-          <label>학년<input name="grade" placeholder="예: 2학년" value="${state.classInfo.grade}" /></label>
-          <label>반<input name="className" placeholder="예: 3반" value="${state.classInfo.name}" /></label>
-          <label>번호<input name="number" placeholder="05" /></label>
+          <label>학년<input name="grade" placeholder="예: 1 또는 1학년" /></label>
+          <label>반<input name="className" placeholder="예: 1 또는 1반" /></label>
+          <label>번호<input name="number" placeholder="예: 1 또는 1번" /></label>
           <label>이름<input name="name" placeholder="학생 이름" /></label>
           <label>비고<input name="note" placeholder="예: 발표 보완, 쓰기 강점, 상담 필요" /></label>
           <button class="primary-button" type="submit">학생 추가</button>
@@ -1014,7 +1015,7 @@ function renderClasses() {
           <button class="ghost-button compact danger-button" type="button" data-delete-selected-students>선택 삭제</button>
         </div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row student-row"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${student.grade || state.classInfo.grade} ${student.className || state.classInfo.name} ${displayStudentNumber(student.number)} ${student.name}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
+          ${state.students.map((student) => `<div class="table-row student-row"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${[student.grade, student.className, displayStudentNumber(student.number), student.name].filter(Boolean).join(" ")}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
         </div>
       </article>
     </section>

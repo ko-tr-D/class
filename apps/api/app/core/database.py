@@ -133,8 +133,11 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS students (
               id TEXT PRIMARY KEY,
               class_id TEXT NOT NULL REFERENCES school_classes(id),
+              grade_level TEXT,
+              class_name TEXT,
               number TEXT NOT NULL,
               name TEXT NOT NULL,
+              note TEXT,
               tags TEXT NOT NULL DEFAULT '[]',
               evidence_count INTEGER NOT NULL DEFAULT 0,
               evaluation TEXT NOT NULL DEFAULT '미입력',
@@ -232,7 +235,20 @@ def init_db() -> None:
             );
             """
         )
+        ensure_student_columns(db)
         seed_demo_data(db)
+
+
+def ensure_student_columns(db: DatabaseConnection) -> None:
+    for statement in (
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS grade_level TEXT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS note TEXT",
+    ):
+        try:
+            db.execute(statement)
+        except Exception:
+            pass
 
 
 def seed_demo_data(db: DatabaseConnection) -> None:
