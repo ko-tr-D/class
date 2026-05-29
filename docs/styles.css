@@ -709,6 +709,22 @@ progress::-webkit-progress-value {
   background: #fbfcfd;
 }
 
+.student-grade-group {
+  display: grid;
+  gap: 10px;
+}
+
+.student-grade-group + .student-grade-group {
+  margin-top: 8px;
+}
+
+.student-grade-group h4 {
+  margin: 0;
+  padding: 6px 2px 0;
+  color: var(--primary);
+  font-size: 14px;
+}
+
 .student-row {
   grid-template-columns: auto minmax(150px, 0.9fr) minmax(0, 1fr) auto auto;
 }

@@ -409,6 +409,39 @@ function displayStudentNumber(value) {
   return raw.endsWith("번") ? raw : `${raw}.`;
 }
 
+function numericPrefix(value) {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+}
+
+function sortStudentsForRoster(students) {
+  return [...students].sort((a, b) => {
+    const gradeOrder = numericPrefix(a.grade) - numericPrefix(b.grade);
+    if (gradeOrder) return gradeOrder;
+    const classOrder = numericPrefix(a.className) - numericPrefix(b.className);
+    if (classOrder) return classOrder;
+    const numberOrder = numericPrefix(a.number) - numericPrefix(b.number);
+    if (numberOrder) return numberOrder;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ko");
+  });
+}
+
+function groupStudentsByGrade(students) {
+  const groups = new Map();
+  for (const student of sortStudentsForRoster(students)) {
+    const grade = String(student.grade || "").trim() || "학년 미입력";
+    if (!groups.has(grade)) groups.set(grade, []);
+    groups.get(grade).push(student);
+  }
+  return [...groups.entries()];
+}
+
+function renderStudentRosterRow(student) {
+  const syncClass = student.syncStatus ? `sync-${student.syncStatus}` : "";
+  const status = student.syncStatus === "saving" ? "저장 중" : student.syncStatus === "error" ? "저장 실패" : student.evaluation;
+  return `<div class="table-row student-row ${syncClass}"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${[student.grade, student.className, displayStudentNumber(student.number), student.name].filter(Boolean).join(" ")}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${status}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`;
+}
+
 async function addStudent(event) {
   event.preventDefault();
   const studentForm = event.currentTarget;
@@ -1014,6 +1047,7 @@ function renderAnalytics() {
 }
 
 function renderClasses() {
+  const groupedStudents = groupStudentsByGrade(state.students);
   return `
     <section class="two-column">
       <article class="panel">
@@ -1033,7 +1067,7 @@ function renderClasses() {
           <button class="ghost-button compact danger-button" type="button" data-delete-selected-students>선택 삭제</button>
         </div>
         <div class="table-list">
-          ${state.students.map((student) => `<div class="table-row student-row ${student.syncStatus ? `sync-${student.syncStatus}` : ""}"><label class="student-check"><input type="checkbox" value="${student.id}" data-student-select /><span class="sr-only">${student.name} 선택</span></label><strong>${[student.grade, student.className, displayStudentNumber(student.number), student.name].filter(Boolean).join(" ")}</strong><span>${student.note || student.tags?.join(", ") || "비고 없음"}</span><em>${student.syncStatus === "saving" ? "저장 중" : student.syncStatus === "error" ? "저장 실패" : student.evaluation}</em><button class="ghost-button compact danger-button" type="button" data-delete-student="${student.id}">삭제</button></div>`).join("")}
+          ${groupedStudents.map(([grade, students]) => `<section class="student-grade-group"><h4>${grade}</h4>${students.map(renderStudentRosterRow).join("")}</section>`).join("")}
         </div>
       </article>
     </section>
