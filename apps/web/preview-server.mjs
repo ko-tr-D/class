@@ -38,6 +38,7 @@ createServer((request, response) => {
     <script>
       localStorage.removeItem("class-learning-record-api");
       localStorage.removeItem("class-learning-record-state-v1");
+      localStorage.removeItem("class-learning-record-state-v2");
       location.replace("/");
     </script>
   </body>

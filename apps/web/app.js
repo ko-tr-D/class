@@ -1,4 +1,4 @@
-const STORAGE_KEY = "class-learning-record-state-v1";
+const STORAGE_KEY = "class-learning-record-state-v2";
 const DEFAULT_API_BASE = "https://class-learning-record-api.onrender.com/api";
 const storedApiBase = localStorage.getItem("class-learning-record-api");
 const API_BASE =
