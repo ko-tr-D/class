@@ -792,14 +792,14 @@ function renderLogin() {
           <button class="mode-tab ${!isTeacher ? "active" : ""}" type="button" data-login-mode="student">학생 접속</button>
         </div>
         <form class="login-form ${isTeacher ? "" : "hidden"}" id="teacherLogin">
-          <label>이메일<input type="email" name="email" value="${state.teacher.email}" autocomplete="email" /></label>
-          <label>비밀번호<input type="password" name="password" value="class-record" autocomplete="current-password" /></label>
+          <label>이메일<input type="email" name="email" autocomplete="email" /></label>
+          <label>비밀번호<input type="password" name="password" autocomplete="current-password" /></label>
           <button class="primary-button" type="submit">대시보드 열기</button>
           <p class="helper-text">교사는 이메일로 로그인하고, 배정된 반과 학년도 자료만 볼 수 있습니다.</p>
         </form>
         <form class="login-form ${isTeacher ? "hidden" : ""}" id="studentJoin">
-          <label>접속 코드<input type="text" name="code" value="KOR-2026-01" autocomplete="one-time-code" /></label>
-          <label>이름<input type="text" name="studentName" value="김민준" autocomplete="name" /></label>
+          <label>접속 코드<input type="text" name="code" autocomplete="one-time-code" /></label>
+          <label>이름<input type="text" name="studentName" autocomplete="name" /></label>
           <button class="primary-button" type="submit">문제 풀이 입장</button>
           <p class="helper-text">학생은 교사가 배포한 코드로 배정된 평가에만 접근합니다.</p>
         </form>
@@ -944,13 +944,13 @@ function renderAssessments() {
       <article class="panel">
         <div class="panel-header"><div><h3>학생용 평가 만들기</h3><p>접속 코드를 배포하면 학생이 브라우저에서 풉니다.</p></div></div>
         <form class="form-grid" id="assessmentForm">
-          <label>평가명<input name="title" value="새 형성평가" /></label>
-          <label>접속 코드<input name="code" value="KOR-${new Date().getFullYear()}-${state.assessments.length + 1}" /></label>
+          <label>평가명<input name="title" /></label>
+          <label>접속 코드<input name="code" /></label>
           <label>성취기준<select name="standardId">${state.standards.map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</select></label>
-          <label>문항<input name="prompt" value="글에서 주장을 뒷받침하는 근거를 찾는 방법은?" /></label>
-          <label>정답 선택지<input name="option1" value="주장과 관련 있고 믿을 만한 자료인지 확인한다." /></label>
-          <label>오답 선택지 1<input name="option2" value="가장 긴 문장을 근거로 고른다." /></label>
-          <label>오답 선택지 2<input name="option3" value="처음 나온 문장을 무조건 근거로 고른다." /></label>
+          <label>문항<input name="prompt" /></label>
+          <label>정답 선택지<input name="option1" /></label>
+          <label>오답 선택지 1<input name="option2" /></label>
+          <label>오답 선택지 2<input name="option3" /></label>
           <button class="primary-button" type="submit">평가 배포</button>
         </form>
       </article>
@@ -1001,11 +1001,11 @@ function renderClasses() {
       <article class="panel">
         <div class="panel-header"><div><h3>${state.classInfo.year}</h3><p>학년, 반, 번호, 이름을 등록합니다.</p></div></div>
         <form class="form-grid" id="studentForm">
-          <label>학년<input name="grade" placeholder="예: 1 또는 1학년" /></label>
-          <label>반<input name="className" placeholder="예: 1 또는 1반" /></label>
-          <label>번호<input name="number" placeholder="예: 1 또는 1번" /></label>
-          <label>이름<input name="name" placeholder="학생 이름" /></label>
-          <label>비고<input name="note" placeholder="예: 발표 보완, 쓰기 강점, 상담 필요" /></label>
+          <label>학년<input name="grade" /></label>
+          <label>반<input name="className" /></label>
+          <label>번호<input name="number" /></label>
+          <label>이름<input name="name" /></label>
+          <label>비고<input name="note" /></label>
           <button class="primary-button" type="submit">학생 추가</button>
         </form>
       </article>
@@ -1031,7 +1031,7 @@ function renderDocuments() {
       <aside class="panel document-library">
         <div class="panel-header"><div><h3>PDF 자료함</h3><p>폴더를 만들고 파일을 관리합니다.</p></div></div>
         <form class="folder-form" id="folderForm">
-          <input name="folderName" placeholder="새 폴더 이름" />
+          <input name="folderName" />
           <button class="ghost-button compact" type="submit">폴더 만들기</button>
         </form>
         <div class="folder-list" aria-label="PDF 폴더">
@@ -1039,8 +1039,8 @@ function renderDocuments() {
         </div>
         <form class="form-grid" id="documentForm">
           <input type="hidden" name="folderId" value="${selectedFolder?.id || ""}" />
-          <label>자료 제목<input name="title" placeholder="예: 3단원 설명문 필기" /></label>
-          <label>단원<input name="unit" placeholder="예: 3단원. 설명하는 글" /></label>
+          <label>자료 제목<input name="title" /></label>
+          <label>단원<input name="unit" /></label>
           <label>PDF 파일<input name="pdf" type="file" accept="application/pdf" /></label>
           <button class="primary-button" type="submit">업로드 등록</button>
         </form>
@@ -1093,10 +1093,10 @@ function renderRubrics() {
         <div class="panel-header"><div><h3>평가 기준표 추가</h3><p>성취기준별 A/B/C 수준 설명을 관리합니다.</p></div></div>
         <form class="form-grid" id="rubricForm">
           <label>성취기준<select name="standardId">${state.standards.map((s) => `<option value="${s.id}">${s.title}</option>`).join("")}</select></label>
-          <label>기준표 이름<input name="title" value="근거 제시 평가" /></label>
-          <label>A 수준<textarea name="levelA" rows="2">타당한 근거를 들어 주장을 분명하게 제시한다.</textarea></label>
-          <label>B 수준<textarea name="levelB" rows="2">주장과 근거를 제시하나 일부 연결이 약하다.</textarea></label>
-          <label>C 수준<textarea name="levelC" rows="2">주장은 있으나 근거가 부족하다.</textarea></label>
+          <label>기준표 이름<input name="title" /></label>
+          <label>A 수준<textarea name="levelA" rows="2"></textarea></label>
+          <label>B 수준<textarea name="levelB" rows="2"></textarea></label>
+          <label>C 수준<textarea name="levelC" rows="2"></textarea></label>
           <button class="primary-button" type="submit">평가 기준 저장</button>
         </form>
       </article>
@@ -1193,7 +1193,7 @@ function renderStudentQuestion(question, index) {
   return `
     <div class="question-box">
       <strong>${index + 1}. ${question.prompt}</strong>
-      <textarea rows="4" data-answer-question="${question.id}" placeholder="답을 입력하세요."></textarea>
+      <textarea rows="4" data-answer-question="${question.id}"></textarea>
     </div>
   `;
 }
