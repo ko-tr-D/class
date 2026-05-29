@@ -107,7 +107,7 @@ def structure() -> dict[str, list[str]]:
     return {
         "teacher": ["dashboard", "classes", "documents", "ocr_review", "rubrics", "student_records", "assessments", "analytics", "record_drafts"],
         "student": ["join", "assessment_player", "submission", "feedback"],
-        "security": ["teacher_email_login", "student_access_code", "authorization", "audit_logs", "data_anonymization"],
+        "security": ["teacher_account_login", "student_access_code", "authorization", "audit_logs", "data_anonymization"],
     }
 
 
@@ -116,7 +116,7 @@ def teacher_login(payload: TeacherLoginRequest) -> dict[str, str]:
     with get_connection() as db:
         user = row_to_dict(db.execute("SELECT * FROM users WHERE email = ?", (payload.email,)).fetchone())
         if not user or not verify_secret(payload.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="Invalid teacher id or password")
         token, expires_at = issue_token()
         db.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token, user["id"], expires_at))
     audit_log("teacher", user["id"], "teacher_login", user["email"])

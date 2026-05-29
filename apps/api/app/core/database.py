@@ -25,6 +25,8 @@ def load_local_env() -> None:
 
 load_local_env()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+TEACHER_LOGIN_ID = os.getenv("TEACHER_LOGIN_ID", "korean").strip() or "korean"
+TEACHER_LOGIN_PASSWORD = os.getenv("TEACHER_LOGIN_PASSWORD", "").strip()
 
 
 class DatabaseConnection(Protocol):
@@ -237,18 +239,64 @@ def init_db() -> None:
         )
         ensure_student_columns(db)
         seed_demo_data(db)
+        ensure_teacher_account(db)
 
 
 def ensure_student_columns(db: DatabaseConnection) -> None:
-    for statement in (
-        "ALTER TABLE students ADD COLUMN IF NOT EXISTS grade_level TEXT",
-        "ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT",
-        "ALTER TABLE students ADD COLUMN IF NOT EXISTS note TEXT",
-    ):
+    if DATABASE_URL.startswith(("postgres://", "postgresql://")):
+        statements = (
+            "ALTER TABLE students ADD COLUMN IF NOT EXISTS grade_level TEXT",
+            "ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT",
+            "ALTER TABLE students ADD COLUMN IF NOT EXISTS note TEXT",
+        )
+    else:
+        statements = (
+            "ALTER TABLE students ADD COLUMN grade_level TEXT",
+            "ALTER TABLE students ADD COLUMN class_name TEXT",
+            "ALTER TABLE students ADD COLUMN note TEXT",
+        )
+    for statement in statements:
         try:
             db.execute(statement)
         except Exception:
             pass
+
+
+def ensure_teacher_account(db: DatabaseConnection) -> None:
+    from app.core.security import hash_secret
+
+    class_id = "class_2026_2_3"
+    teacher_id = "user_teacher_demo"
+    class_row = db.execute("SELECT id FROM school_classes WHERE id = ?", (class_id,)).fetchone()
+    if not class_row:
+        db.execute(
+            "INSERT INTO school_classes (id, name, school_year, grade_level, subject) VALUES (?, ?, ?, ?, ?)",
+            (class_id, "3반", "2026학년도", "2학년", "국어"),
+        )
+
+    user_row = db.execute("SELECT id FROM users WHERE id = ?", (teacher_id,)).fetchone()
+    password_hash = hash_secret(TEACHER_LOGIN_PASSWORD or new_id("disabled_password"))
+    if user_row:
+        db.execute(
+            "UPDATE users SET email = ?, display_name = ?, password_hash = ?, role = ? WHERE id = ?",
+            (TEACHER_LOGIN_ID, "국어 선생님", password_hash, "teacher", teacher_id),
+        )
+    else:
+        db.execute(
+            "INSERT INTO users (id, email, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+            (teacher_id, TEACHER_LOGIN_ID, "국어 선생님", password_hash, "teacher"),
+        )
+
+    permission = db.execute(
+        "SELECT 1 FROM teacher_class_permissions WHERE user_id = ? AND class_id = ?",
+        (teacher_id, class_id),
+    ).fetchone()
+    if not permission:
+        db.execute(
+            "INSERT INTO teacher_class_permissions (user_id, class_id, permission_level) VALUES (?, ?, ?)",
+            (teacher_id, class_id, "owner"),
+        )
+    db.execute("DELETE FROM sessions WHERE user_id = ?", (teacher_id,))
 
 
 def seed_demo_data(db: DatabaseConnection) -> None:
@@ -262,7 +310,7 @@ def seed_demo_data(db: DatabaseConnection) -> None:
     teacher_id = "user_teacher_demo"
     db.execute(
         "INSERT INTO users (id, email, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-        (teacher_id, "teacher@class.local", "국어 선생님", hash_secret("class-record"), "teacher"),
+        (teacher_id, TEACHER_LOGIN_ID, "국어 선생님", hash_secret(TEACHER_LOGIN_PASSWORD or new_id("disabled_password")), "teacher"),
     )
     db.execute(
         "INSERT INTO school_classes (id, name, school_year, grade_level, subject) VALUES (?, ?, ?, ?, ?)",

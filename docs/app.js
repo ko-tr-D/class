@@ -14,7 +14,7 @@ const seedState = {
   route: "dashboard",
   loginMode: "teacher",
   teacher: {
-    email: "teacher@class.local",
+    email: "korean",
     name: "국어 선생님",
     role: "teacher",
     permissions: ["2026-2-3"],
@@ -315,20 +315,11 @@ function setLoginMode(mode) {
 async function teacherLogin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  state.session = {
-    type: "teacher",
-    email: form.get("email"),
-    name: state.teacher.name,
-    classId: state.classInfo.id,
-  };
-  state.route = "dashboard";
-  audit("teacher_login", state.teacher.name);
-  render();
 
   try {
     const login = await apiFetch("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      body: JSON.stringify({ email: String(form.get("email") || "").trim(), password: form.get("password") }),
     });
     state.session = {
       type: "teacher",
@@ -337,10 +328,15 @@ async function teacherLogin(event) {
       accessToken: login.access_token,
       classId: state.classInfo.id,
     };
+    state.route = "dashboard";
+    audit("teacher_login", login.display_name);
     await loadDashboardFromApi();
     render();
   } catch (error) {
-    console.warn("API 연결 없이 데모 모드로 로그인합니다.", error);
+    state.session = null;
+    saveState();
+    alert("아이디 또는 비밀번호를 확인해 주세요.");
+    console.warn("교사 로그인에 실패했습니다.", error);
   }
 }
 
@@ -791,11 +787,11 @@ function renderLogin() {
           <button class="mode-tab ${isTeacher ? "active" : ""}" type="button" data-login-mode="teacher">교사 로그인</button>
           <button class="mode-tab ${!isTeacher ? "active" : ""}" type="button" data-login-mode="student">학생 접속</button>
         </div>
-        <form class="login-form ${isTeacher ? "" : "hidden"}" id="teacherLogin">
-          <label>이메일<input type="email" name="email" autocomplete="email" /></label>
-          <label>비밀번호<input type="password" name="password" autocomplete="current-password" /></label>
-          <button class="primary-button" type="submit">대시보드 열기</button>
-          <p class="helper-text">교사는 이메일로 로그인하고, 배정된 반과 학년도 자료만 볼 수 있습니다.</p>
+        <form class="login-form ${isTeacher ? "" : "hidden"}" id="teacherLogin" autocomplete="off">
+          <label>아이디<input type="text" name="email" autocomplete="off" autocapitalize="none" spellcheck="false" /></label>
+          <label>비밀번호<input type="password" name="password" autocomplete="new-password" /></label>
+          <button class="primary-button" type="submit">로그인</button>
+          <p class="helper-text">교사 계정으로 로그인해야 배정된 반과 학년도 자료를 볼 수 있습니다.</p>
         </form>
         <form class="login-form ${isTeacher ? "hidden" : ""}" id="studentJoin">
           <label>접속 코드<input type="text" name="code" autocomplete="one-time-code" /></label>
@@ -836,7 +832,7 @@ function renderSidebar() {
       <nav class="nav-list" aria-label="교사용 메뉴">
         ${nav.map(([route, label]) => `<button class="${state.route === route ? "active" : ""}" type="button" data-route="${route}">${label}</button>`).join("")}
       </nav>
-      <div class="security-note"><strong>보안 상태</strong><span>교사 이메일 로그인 · 학생 접속 코드 · 감사 로그 기록 중</span></div>
+      <div class="security-note"><strong>보안 상태</strong><span>교사 계정 로그인 · 학생 접속 코드 · 감사 로그 기록 중</span></div>
     </aside>
   `;
 }
