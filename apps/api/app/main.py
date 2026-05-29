@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
-from app.core.database import get_connection, init_db
+from app.core.database import TEACHER_LOGIN_ID, TEACHER_LOGIN_PASSWORD, get_connection, init_db
 from app.core.drive_storage import is_drive_configured
 
 logger = logging.getLogger("class_learning_record")
@@ -44,6 +44,8 @@ def health() -> dict:
         "database_url_password_present": bool(parsed.password) if parsed else False,
         "google_drive_root_present": bool(os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID", "")),
         "google_credentials_json_present": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")),
+        "teacher_login_id": TEACHER_LOGIN_ID,
+        "teacher_login_password_present": bool(TEACHER_LOGIN_PASSWORD),
     }
 
 
@@ -57,8 +59,10 @@ def system_status() -> dict[str, object]:
             for table in ("users", "school_classes", "students", "standards", "assessments"):
                 row = db.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()
                 table_counts[table] = row["count"]
+            teacher_row = db.execute("SELECT email FROM users WHERE id = ?", ("user_teacher_demo",)).fetchone()
     except Exception as error:
         database_error = f"{error.__class__.__name__}: {str(error)[:160]}"
+        teacher_row = None
 
     return {
         "api": "ok",
@@ -67,6 +71,9 @@ def system_status() -> dict[str, object]:
         "table_counts": table_counts,
         "drive": "configured" if is_drive_configured() else "not_configured",
         "web_origin": os.getenv("WEB_ORIGIN", ""),
+        "teacher_login_id": TEACHER_LOGIN_ID,
+        "teacher_login_password_present": bool(TEACHER_LOGIN_PASSWORD),
+        "teacher_account_email": teacher_row["email"] if teacher_row else None,
     }
 
 
@@ -91,6 +98,8 @@ def system_env_check() -> dict[str, str | bool | None]:
         "database_url_user": parsed.username if parsed else None,
         "database_url_password_present": bool(parsed.password) if parsed else False,
         "drive_configured": is_drive_configured(),
+        "teacher_login_id": TEACHER_LOGIN_ID,
+        "teacher_login_password_present": bool(TEACHER_LOGIN_PASSWORD),
     }
 
 

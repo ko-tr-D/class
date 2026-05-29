@@ -275,13 +275,19 @@ def ensure_teacher_account(db: DatabaseConnection) -> None:
         )
 
     user_row = db.execute("SELECT id FROM users WHERE id = ?", (teacher_id,)).fetchone()
-    password_hash = hash_secret(TEACHER_LOGIN_PASSWORD or new_id("disabled_password"))
     if user_row:
-        db.execute(
-            "UPDATE users SET email = ?, display_name = ?, password_hash = ?, role = ? WHERE id = ?",
-            (TEACHER_LOGIN_ID, "국어 선생님", password_hash, "teacher", teacher_id),
-        )
+        if TEACHER_LOGIN_PASSWORD:
+            db.execute(
+                "UPDATE users SET email = ?, display_name = ?, password_hash = ?, role = ? WHERE id = ?",
+                (TEACHER_LOGIN_ID, "국어 선생님", hash_secret(TEACHER_LOGIN_PASSWORD), "teacher", teacher_id),
+            )
+        else:
+            db.execute(
+                "UPDATE users SET email = ?, display_name = ?, role = ? WHERE id = ?",
+                (TEACHER_LOGIN_ID, "국어 선생님", "teacher", teacher_id),
+            )
     else:
+        password_hash = hash_secret(TEACHER_LOGIN_PASSWORD or new_id("disabled_password"))
         db.execute(
             "INSERT INTO users (id, email, display_name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
             (teacher_id, TEACHER_LOGIN_ID, "국어 선생님", password_hash, "teacher"),
